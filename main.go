@@ -5,23 +5,21 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"image"
-	"image/jpeg"
 	"log"
-	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
 
-	google "./google"
-	mjpeg "./mjpeg"
 	web "./web"
 )
 
 type CommandFunc func() error
 
-const ()
+const (
+	MAX_IMAGE_PER_CAM = 100
+	CAPTURE_FOLDER    = "./Capture"
+)
 
 var (
 	addr         = flag.String("addr", "127.0.0.1:1667", "Web Address")
@@ -77,112 +75,24 @@ func main() {
 	// Start Web Server
 	log.Println("Start Web Server")
 	wf := web.MakeWebFace(*addr, *staticFldr, *templateFldr)
-	wf.RedirectHandler = func(rw http.ResponseWriter, req *http.Request) {
-		fmt.Fprintf(rw, "Starting Server on %s", *addr)
-	}
-
-	// Login
-	log.Println("Login")
-	Tok, cErr := google.Login(wf, google.GetClientScope())
-	if cErr != nil {
-		log.Fatalln("Login Error:", cErr)
-	}
-
-	iTok, iErr := google.GetIdentity(Tok)
-	if iErr != nil {
-		log.Fatalln("Identity Error:", iErr)
-	}
-	fmt.Println(iTok)
-
-	b := new(bytes.Buffer)
-	google.EncodeToken(Tok, b)
 
 	// Setup Webface with Database
 	SetupWebFace(wf)
 	wf.RedirectHandler = nil
 
-	log.Println("First Capture")
-	{
-		respA, errA := http.Get("http://admin:admin@192.168.1.99/goform/video")
-
-		if errA != nil {
-			log.Println("http://192.168.1.99/", errA)
-		} else {
-			// Stuff
-
-			var img image.Image
-			d, err := mjpeg.NewDecoderFromResponse(respA)
-			i := 0
-
-			if err != nil {
-				log.Println("Failed to Decode", err)
-			} else {
-				d.Decode(&img)
-				fmt.Println(img.Bounds())
-			}
-
-			f, e := os.Create(fmt.Sprintf("CameraA %d.jpeg", i))
-			i = (i + 1) % 50
-			if e != nil {
-				log.Println("Failed to Write")
-			} else {
-				jpeg.Encode(f, img, &jpeg.Options{80})
-				f.Close()
-			}
-
-			return
-
-			/*
-
-				reader := bufio.NewScanner(respA.Body)
-				reader.Split(spltFunc)
-				i := 0
-
-				for reader.Scan() {
-
-					b := reader.Bytes()
-					bl := len(b)
-
-					if bl > 0 {
-						f, e := os.Create(fmt.Sprintf("CameraA %d.jpeg", i))
-						i = (i + 1) % 50
-						if e != nil {
-							log.Println("Failed to Write")
-						} else {
-							f.Write(b)
-							f.Close()
-						}
-					}
-
-					log.Println("Snap", bl)
-				}
-
-				respA.Body.Close()
-			*/
-		}
-
-		log.Println("Upload File A...")
-		google.InsertFile("Camera A", "", "", "image/jpeg", respA.Body)
+	// Create Capture Folder
+	FileErr := os.RemoveAll(CAPTURE_FOLDER)
+	if FileErr != nil && !os.IsNotExist(FileErr) {
+		log.Fatalln(FileErr)
+		return
 	}
-	/*
-		respB, errB := http.Get("http://admin:admin@192.168.1.100/goform/video")
 
-		if errB != nil {
-			log.Println("http://192.168.1.100/", errB)
-		} else {
-			// Stuff
-			log.Println("Upload File B...")
-			f, e := os.Create("CameraB.webp")
-			if e != nil {
-				log.Println("Failed to Write")
-			} else {
-				io.Copy(f, respB.Body)
-				respB.Body.Close()
-				f.Close()
-			}
+	os.Mkdir(CAPTURE_FOLDER, os.ModePerm)
 
-			google.InsertFile("Camera B", "", "", "image/webp", respB.Body)
-		}*/
+	// Start Jobs
+	go fetchMPEGCamLoop("camA", "http://admin:admin@192.168.1.99/goform/video")
+	go fetchMPEGCamLoop("camB", "http://admin:admin@192.168.1.100/goform/video")
+	go startUploader(wf)
 
 	// Running Loop
 	log.Println("Running Loop")
