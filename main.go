@@ -10,8 +10,6 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
-
-	web "./web"
 )
 
 type CommandFunc func() error
@@ -72,13 +70,13 @@ func main() {
 		log.Println("Debug Active")
 	}
 
-	// Start Web Server
-	log.Println("Start Web Server")
-	wf := web.MakeWebFace(*addr, *staticFldr, *templateFldr)
-
-	// Setup Webface with Database
-	SetupWebFace(wf)
-	wf.RedirectHandler = nil
+	//// Start Web Server
+	//log.Println("Start Web Server")
+	//wf := web.MakeWebFace(*addr, *staticFldr, *templateFldr)
+	//
+	//// Setup Webface with Database
+	//SetupWebFace(wf)
+	//wf.RedirectHandler = nil
 
 	// Create Capture Folder
 	FileErr := os.RemoveAll(CAPTURE_FOLDER)
@@ -92,7 +90,7 @@ func main() {
 	// Start Jobs
 	go fetchMPEGCamLoop("camA", "http://admin:admin@192.168.1.99/goform/video")
 	go fetchMPEGCamLoop("camB", "http://admin:admin@192.168.1.100/goform/video")
-	go startUploader(wf)
+	// go startUploader(wf)
 
 	// Running Loop
 	log.Println("Running Loop")
