@@ -15,7 +15,7 @@ import (
 type CommandFunc func() error
 
 const (
-	MAX_IMAGE_PER_CAM = 100
+	MAX_IMAGE_PER_CAM = 10
 	CAPTURE_FOLDER    = "./Capture"
 )
 
@@ -94,6 +94,7 @@ func main() {
 
 	// Running Loop
 	log.Println("Running Loop")
+	startBot()
 	commandLoop()
 
 	// Clean up
