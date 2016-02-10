@@ -15,21 +15,20 @@ import (
 )
 
 func fetchMPEGCamLoop(name string, addr string) {
-
-	var prevImg image.Image
-	resp, errA := http.Get(addr)
-
-	if errA != nil {
-		log.Println(name, addr, errA)
-		return
-	}
-
-	// Stuff
 	var decodeErr error
 	var img image.Image
+	var prevImg image.Image
+
 	i := 0
 
 	for {
+		resp, errA := http.Get(addr)
+
+		if errA != nil {
+			log.Println(name, addr, errA)
+			return
+		}
+
 		log.Println("Fetching... ", name, addr, decodeErr)
 
 		d, err := mjpeg.NewDecoderFromResponse(resp)
