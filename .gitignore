@@ -3,6 +3,7 @@
 *.a
 *.so
 _*
+*secret*
 
 # Folders
 _obj
