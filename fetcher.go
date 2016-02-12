@@ -6,10 +6,8 @@ package main
 import (
 	"fmt"
 	"image"
-	"image/jpeg"
 	"log"
 	"net/http"
-	"os"
 	"sync"
 
 	mjpeg "./mjpeg"
@@ -75,15 +73,5 @@ func saveLoopToFile(co *camObject, inImg <-chan image.Image) {
 		saveJPEGToFolder(fmt.Sprintf("%s/%s_%d.jpeg", co.folder, co.name, i), img)
 
 		i = (i + 1) % co.filesToLoop
-	}
-}
-
-func saveJPEGToFolder(name string, img image.Image) {
-	f, e := os.Create(name)
-	if e != nil {
-		log.Println("Failed to Write", name, e)
-	} else {
-		jpeg.Encode(f, img, &jpeg.Options{80})
-		f.Close()
 	}
 }

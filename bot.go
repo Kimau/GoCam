@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/tucnak/telebot"
+	"image"
 	"time"
 )
 
@@ -52,15 +53,19 @@ func startBot(camObjs []*camObject) {
 			bot.SendMessage(message.Chat, text, &replySendOpt)
 		} else if message.Text == "/cam" {
 
+			imgList := []image.Image{}
 			for _, v := range camObjs {
 				v.lock.Lock()
-
-				photofile, _ := telebot.NewFile(fmt.Sprintf("%s/%s.jpeg", v.folder, v.name))
-				photo := telebot.Photo{File: photofile}
-				_ = bot.SendPhoto(message.Chat, &photo, &replySendOpt)
-
+				imgList = append(imgList, loadJPEGFromFolder(fmt.Sprintf("%s/%s.jpeg", v.folder, v.name)))
 				v.lock.Unlock()
 			}
+
+			finalImg := mergeImage(imgList)
+			saveJPEGToFolder("_temp.jpg", finalImg)
+
+			photofile, _ := telebot.NewFile("_temp.jpg")
+			photo := telebot.Photo{File: photofile}
+			_ = bot.SendPhoto(message.Chat, &photo, &replySendOpt)
 
 		} else {
 			bot.SendMessage(message.Chat, "Say */hi*", &replySendOpt)
