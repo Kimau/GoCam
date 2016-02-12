@@ -24,7 +24,8 @@ var (
 	db           = flag.String("db", "_data.db", "Database")
 	staticFldr   = flag.String("static", "./static", "Static Folder")
 	templateFldr = flag.String("template", "./templates", "Templates Folder")
-	debug        = flag.Bool("debug", false, "show HTTP traffic")
+	debug        = flag.Bool("debug", false, "enter debug mode")
+	telegram     = flag.Bool("telegram", true, "telegram bot live")
 	commandFuncs = make(map[string]CommandFunc)
 )
 
@@ -87,14 +88,18 @@ func main() {
 
 	os.Mkdir(CAPTURE_FOLDER, os.ModePerm)
 
-	// Start Jobs
-	go fetchMPEGCamLoop("camA", "http://admin:admin@192.168.1.99/goform/video")
-	go fetchMPEGCamLoop("camB", "http://admin:admin@192.168.1.100/goform/video")
+	camList := []*camObject{
+		startCamCapture("camA", "http://admin:admin@192.168.1.99/goform/video"),
+		startCamCapture("camB", "http://admin:admin@192.168.1.100/goform/video"),
+	}
+
 	// go startUploader(wf)
 
 	// Running Loop
-	log.Println("Running Loop")
-	startBot()
+	if *telegram {
+		log.Println("Running Loop")
+		startBot(camList)
+	}
 	commandLoop()
 
 	// Clean up

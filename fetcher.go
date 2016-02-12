@@ -10,48 +10,80 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync"
 
 	mjpeg "./mjpeg"
 )
 
-func fetchMPEGCamLoop(name string, addr string) {
+type camObject struct {
+	name        string
+	folder      string
+	addr        string
+	filesToLoop int
+	lock        sync.Mutex
+}
+
+func startCamCapture(filename string, address string) *camObject {
+	co := camObject{
+		name:        filename,
+		folder:      CAPTURE_FOLDER,
+		addr:        address,
+		filesToLoop: MAX_IMAGE_PER_CAM,
+	}
+
+	camImageChan := make(chan image.Image)
+	go fetchMPEGCamLoop(&co, camImageChan)
+	go saveLoopToFile(&co, camImageChan)
+	return &co
+}
+
+func fetchMPEGCamLoop(co *camObject, outImg chan image.Image) {
 	var decodeErr error
 	var img image.Image
-	var prevImg image.Image
-
-	i := 0
 
 	for {
-		resp, errA := http.Get(addr)
+		resp, errA := http.Get(co.addr)
 
 		if errA != nil {
-			log.Println(name, addr, errA)
+			log.Println(co.addr, errA)
 			return
 		}
 
-		log.Println("Fetching... ", name, addr, decodeErr)
+		log.Println("Fetching... ", co.addr, decodeErr)
 
 		d, err := mjpeg.NewDecoderFromResponse(resp)
 		if err != nil {
-			log.Println("Failed to create Decoder:", name, addr, err)
+			log.Println("Failed to create Decoder:", co.addr, err)
 			return
 		}
 
 		for decodeErr = d.Decode(&img); decodeErr == nil; decodeErr = d.Decode(&img) {
-			f, e := os.Create(fmt.Sprintf("%s/%s %d.jpeg", CAPTURE_FOLDER, name, i))
-			i = (i + 1) % MAX_IMAGE_PER_CAM
-			if e != nil {
-				log.Println("Failed to Write", name, addr, e)
-			} else {
-				jpeg.Encode(f, img, &jpeg.Options{80})
-				f.Close()
-			}
-
-			if prevImg != nil {
-
-			}
-			prevImg = img
+			outImg <- img
 		}
 	}
+}
 
+func saveLoopToFile(co *camObject, inImg <-chan image.Image) {
+	i := 0
+
+	for {
+		img := <-inImg
+		co.lock.Lock()
+		saveJPEGToFolder(fmt.Sprintf("%s/%s.jpeg", co.folder, co.name), img)
+		co.lock.Unlock()
+
+		saveJPEGToFolder(fmt.Sprintf("%s/%s_%d.jpeg", co.folder, co.name, i), img)
+
+		i = (i + 1) % co.filesToLoop
+	}
+}
+
+func saveJPEGToFolder(name string, img image.Image) {
+	f, e := os.Create(name)
+	if e != nil {
+		log.Println("Failed to Write", name, e)
+	} else {
+		jpeg.Encode(f, img, &jpeg.Options{80})
+		f.Close()
+	}
 }

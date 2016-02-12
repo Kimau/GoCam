@@ -21,7 +21,7 @@ func checkAuth(id int) bool {
 	return false
 }
 
-func startBot() {
+func startBot(camObjs []*camObject) {
 	bot, err := telebot.NewBot(TELEGRAM_SECRET_TOKEN)
 	if err != nil {
 		return
@@ -29,6 +29,15 @@ func startBot() {
 
 	messages := make(chan telebot.Message)
 	bot.Listen(messages, REFRESH_TIME)
+
+	replySendOpt := telebot.SendOptions{
+		ParseMode: telebot.ModeMarkdown,
+		ReplyMarkup: telebot.ReplyMarkup{
+			ForceReply:      true,
+			CustomKeyboard:  [][]string{[]string{"/hi", "/cam"}},
+			OneTimeKeyboard: true,
+			ResizeKeyboard:  true,
+		}}
 
 	for message := range messages {
 
@@ -40,18 +49,21 @@ func startBot() {
 
 		if message.Text == "/hi" {
 			text := fmt.Sprintf("Hello %s your id is %d", message.Sender.FirstName, message.Sender.ID)
-			bot.SendMessage(message.Chat, text, nil)
+			bot.SendMessage(message.Chat, text, &replySendOpt)
 		} else if message.Text == "/cam" {
 
-			for _, v := range [...]string{"camA", "camB"} {
-				filename := fmt.Sprintf("%s/%s %d.jpeg", CAPTURE_FOLDER, v, 1)
-				photofile, _ := telebot.NewFile(filename)
+			for _, v := range camObjs {
+				v.lock.Lock()
+
+				photofile, _ := telebot.NewFile(fmt.Sprintf("%s/%s.jpeg", v.folder, v.name))
 				photo := telebot.Photo{File: photofile}
-				_ = bot.SendPhoto(message.Chat, &photo, nil)
+				_ = bot.SendPhoto(message.Chat, &photo, &replySendOpt)
+
+				v.lock.Unlock()
 			}
 
 		} else {
-			bot.SendMessage(message.Chat, "Say /hi", nil)
+			bot.SendMessage(message.Chat, "Say */hi*", &replySendOpt)
 		}
 	}
 }
