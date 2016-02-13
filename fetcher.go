@@ -4,7 +4,6 @@
 package main
 
 import (
-	"fmt"
 	"image"
 	"log"
 	"net/http"
@@ -18,6 +17,8 @@ type camObject struct {
 	folder      string
 	addr        string
 	filesToLoop int
+	lastImg     image.Image
+	imgBuffer   []image.Image
 	lock        sync.Mutex
 }
 
@@ -27,6 +28,7 @@ func startCamCapture(filename string, address string) *camObject {
 		folder:      CAPTURE_FOLDER,
 		addr:        address,
 		filesToLoop: MAX_IMAGE_PER_CAM,
+		imgBuffer:   make([]image.Image, MAX_IMAGE_PER_CAM, MAX_IMAGE_PER_CAM),
 	}
 
 	camImageChan := make(chan image.Image)
@@ -67,10 +69,9 @@ func saveLoopToFile(co *camObject, inImg <-chan image.Image) {
 	for {
 		img := <-inImg
 		co.lock.Lock()
-		saveJPEGToFolder(fmt.Sprintf("%s/%s.jpeg", co.folder, co.name), img)
+		co.lastImg = img
+		co.imgBuffer[i] = co.lastImg
 		co.lock.Unlock()
-
-		saveJPEGToFolder(fmt.Sprintf("%s/%s_%d.jpeg", co.folder, co.name, i), img)
 
 		i = (i + 1) % co.filesToLoop
 	}

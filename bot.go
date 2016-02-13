@@ -56,7 +56,7 @@ func startBot(camObjs []*camObject) {
 			imgList := []image.Image{}
 			for _, v := range camObjs {
 				v.lock.Lock()
-				imgList = append(imgList, loadJPEGFromFolder(fmt.Sprintf("%s/%s.jpeg", v.folder, v.name)))
+				imgList = append(imgList, v.lastImg)
 				v.lock.Unlock()
 			}
 
