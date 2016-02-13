@@ -35,7 +35,7 @@ func startBot(camObjs []*camObject) {
 		ParseMode: telebot.ModeMarkdown,
 		ReplyMarkup: telebot.ReplyMarkup{
 			ForceReply:      true,
-			CustomKeyboard:  [][]string{[]string{"/hi", "/cam"}},
+			CustomKeyboard:  [][]string{[]string{"/hi", "/cam", "/lum"}},
 			OneTimeKeyboard: true,
 			ResizeKeyboard:  true,
 		}}
@@ -44,7 +44,7 @@ func startBot(camObjs []*camObject) {
 
 		if !checkAuth(message.Sender.ID) {
 			text := fmt.Sprintf("Sorry %s BITCH! You are not my boss. Your ID is %d", message.Sender.FirstName, message.Sender.ID)
-			bot.SendMessage(message.Chat, text, nil)
+			bot.SendMessage(message.Chat, text, &replySendOpt)
 			continue
 		}
 
@@ -67,6 +67,20 @@ func startBot(camObjs []*camObject) {
 			photo := telebot.Photo{File: photofile}
 			_ = bot.SendPhoto(message.Chat, &photo, &replySendOpt)
 
+		} else if message.Text == "/lum" {
+			text := "Lum \n"
+			for _, cam := range camObjs {
+				text += cam.name + ": ["
+				for _, v := range cam.data {
+					text += fmt.Sprintf("(%d,%f)", v.lum, v.frameDuration.Seconds())
+				}
+
+				text += "] \n"
+			}
+
+			fmt.Println(text)
+
+			bot.SendMessage(message.Chat, text, &replySendOpt)
 		} else {
 			bot.SendMessage(message.Chat, "Say */hi*", &replySendOpt)
 		}

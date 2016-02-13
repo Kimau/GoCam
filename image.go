@@ -6,14 +6,13 @@ import (
 	"image/jpeg"
 	"log"
 	"os"
-
-	//"github.com/llgcode/draw2d"
-	//"github.com/llgcode/draw2d/draw2dimg"
 )
 
 func mergeImage(imgs []image.Image) image.Image {
 	width := 0
 	height := 0
+
+	imgs[0] = RotateImageLeft(imgs[0])
 
 	for _, v := range imgs {
 		if v.Bounds().Size().X > width {
@@ -34,6 +33,36 @@ func mergeImage(imgs []image.Image) image.Image {
 			draw.Over)
 
 		height += h
+	}
+
+	return m
+}
+
+func RotateImageLeft(src image.Image) image.Image {
+	width := src.Bounds().Size().X
+	height := src.Bounds().Size().Y
+
+	m := draw.Image(image.NewRGBA(image.Rect(0, 0, height, width)))
+
+	for x := 0; x < width; x += 1 {
+		for y := 0; y < width; y += 1 {
+			m.Set(y, width-x, src.At(x, y))
+		}
+	}
+
+	return m
+}
+
+func ToComputeImage(src image.Image) *image.Gray {
+	width := src.Bounds().Size().X
+	height := src.Bounds().Size().Y
+
+	m := image.NewGray(image.Rect(0, 0, width, height))
+
+	for x := 0; x < width; x += 1 {
+		for y := 0; y < width; y += 1 {
+			m.Set(x, y, src.At(x, y))
+		}
 	}
 
 	return m
@@ -60,4 +89,19 @@ func loadJPEGFromFolder(name string) image.Image {
 		return img
 	}
 
+}
+
+/// Compute Stuff
+
+func lumTotal(src *image.Gray) (lum uint8) {
+	lum = 128
+
+	var lumTotal int
+	for _, v := range src.Pix {
+		lumTotal += int(v)
+	}
+
+	lum = uint8(lumTotal / len(src.Pix))
+
+	return lum
 }

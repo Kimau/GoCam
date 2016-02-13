@@ -8,17 +8,26 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	mjpeg "./mjpeg"
 )
+
+type computeData struct {
+	stamp         time.Time
+	lum           uint8
+	frameDuration time.Duration
+}
 
 type camObject struct {
 	name        string
 	folder      string
 	addr        string
+	imgCur      int
 	filesToLoop int
 	lastImg     image.Image
 	imgBuffer   []image.Image
+	data        []computeData
 	lock        sync.Mutex
 }
 
@@ -27,8 +36,10 @@ func startCamCapture(filename string, address string) *camObject {
 		name:        filename,
 		folder:      CAPTURE_FOLDER,
 		addr:        address,
+		imgCur:      0,
 		filesToLoop: MAX_IMAGE_PER_CAM,
 		imgBuffer:   make([]image.Image, MAX_IMAGE_PER_CAM, MAX_IMAGE_PER_CAM),
+		data:        []computeData{},
 	}
 
 	camImageChan := make(chan image.Image)
@@ -65,13 +76,32 @@ func fetchMPEGCamLoop(co *camObject, outImg chan image.Image) {
 
 func saveLoopToFile(co *camObject, inImg <-chan image.Image) {
 	i := 0
+	var dataResult *computeData = nil
 
 	for {
 		img := <-inImg
 		co.lock.Lock()
+		if dataResult != nil {
+			co.data = append(co.data, *dataResult)
+		}
+		co.imgCur = i
 		co.lastImg = img
 		co.imgBuffer[i] = co.lastImg
+		computeImg := ToComputeImage(img)
 		co.lock.Unlock()
+
+		// Do Compute Image
+		dataResult = &computeData{
+			stamp: time.Now(),
+		}
+
+		dataResult.lum = lumTotal(computeImg)
+		if len(co.data) == 0 {
+			dataResult.frameDuration = 0
+		} else {
+			prev := &co.data[len(co.data)-1]
+			dataResult.frameDuration = dataResult.stamp.Sub(prev.stamp)
+		}
 
 		i = (i + 1) % co.filesToLoop
 	}
