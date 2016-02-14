@@ -2,9 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/tucnak/telebot"
 	"image"
 	"time"
+
+	"github.com/tucnak/telebot"
 )
 
 const (
@@ -35,7 +36,7 @@ func startBot(camObjs []*camObject) {
 		ParseMode: telebot.ModeMarkdown,
 		ReplyMarkup: telebot.ReplyMarkup{
 			ForceReply:      true,
-			CustomKeyboard:  [][]string{[]string{"/hi", "/cam", "/lum"}},
+			CustomKeyboard:  [][]string{[]string{"/cam", "/lum", "/gif"}},
 			OneTimeKeyboard: true,
 			ResizeKeyboard:  true,
 		}}
@@ -66,21 +67,53 @@ func startBot(camObjs []*camObject) {
 			photofile, _ := telebot.NewFile("_temp.jpg")
 			photo := telebot.Photo{File: photofile}
 			_ = bot.SendPhoto(message.Chat, &photo, &replySendOpt)
+		} else if message.Text == "/gif" {
+			/*
+				// Run once for each camera
+				for _, v := range camObjs {
+					v.lock.Lock()
+					gifData := gif.GIF{
+						LoopCount: -1,
+					}
 
-		} else if message.Text == "/lum" {
-			text := "Lum \n"
-			for _, cam := range camObjs {
-				text += cam.name + ": ["
-				for _, v := range cam.data {
-					text += fmt.Sprintf("(%d,%f)", v.lum, v.frameDuration.Seconds())
+					numImg := len(v.imgBuffer)
+
+					palImages := make([]*image.Paletted, numImg, numImg)
+					gifData.Disposal = make([]byte, numImg, numImg)
+					gifData.Delay = make([]int, numImg, numImg)
+
+					for i, img := range v.imgBuffer {
+						newPal := getColours(img)
+						newPalImg := image.NewPaletted(img.Bounds(), newPal)
+						draw.Draw(newPalImg, img.Bounds(), img, image.ZP, draw.Over)
+
+						saveGIFToFolder(fmt.Sprintf("_%s_%d.gif", v.name, i), newPalImg)
+
+						palImages = append(palImages, newPalImg)
+						gifData.Disposal[i] = gif.DisposalBackground
+						gifData.Delay[i] = 500
+					}
+					v.lock.Unlock()
+
+					gifData.Image = palImages
+
+					filename := fmt.Sprintf("_%s.gif", v.name)
+					saveAllGIFToFolder(filename, &gifData)
+
+					photofile, _ := telebot.NewFile(filename)
+					photo := telebot.Photo{File: photofile}
+					_ = bot.SendPhoto(message.Chat, &photo, &replySendOpt)
 				}
+				// end
+			*/
+		} else if message.Text == "/lum" {
 
-				text += "] \n"
-			}
+			saveGIFToFolder("_temp.gif", makeLumTimeline(camObjs))
 
-			fmt.Println(text)
+			photofile, _ := telebot.NewFile("_temp.gif")
+			photo := telebot.Photo{File: photofile}
+			_ = bot.SendPhoto(message.Chat, &photo, &replySendOpt)
 
-			bot.SendMessage(message.Chat, text, &replySendOpt)
 		} else {
 			bot.SendMessage(message.Chat, "Say */hi*", &replySendOpt)
 		}

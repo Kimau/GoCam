@@ -2,12 +2,36 @@ package main
 
 import (
 	"image"
+	"image/color"
 	"image/draw"
+	"image/gif"
 	"image/jpeg"
 	"log"
 	"os"
+	"sort"
 )
 
+var (
+	tempColourRange = 13
+	tempColour      = []color.Color{
+		color.RGBA{0x00, 0x00, 0x00, 0x00},
+		color.RGBA{0xFE, 0x26, 0x12, 0xAA},
+		color.RGBA{0xFE, 0x55, 0x08, 0xAA},
+		color.RGBA{0xFC, 0x9A, 0x03, 0xAA},
+		color.RGBA{0xFA, 0xBD, 0x02, 0xAA},
+		color.RGBA{0xFE, 0xFE, 0x33, 0xAA},
+		color.RGBA{0xD0, 0xEB, 0x2C, 0xAA},
+		color.RGBA{0x66, 0xB1, 0x32, 0xAA},
+		color.RGBA{0x03, 0x93, 0xCF, 0xAA},
+		color.RGBA{0x02, 0x48, 0xFF, 0xAA},
+		color.RGBA{0x3E, 0x01, 0xA4, 0xAA},
+		color.RGBA{0x00, 0x00, 0x00, 0xFF},
+		color.RGBA{0xFF, 0xFF, 0xFF, 0xFF},
+	}
+)
+
+//------------------------------------------------------------------------------
+// Image Functions
 func mergeImage(imgs []image.Image) image.Image {
 	width := 0
 	height := 0
@@ -53,21 +77,6 @@ func RotateImageLeft(src image.Image) image.Image {
 	return m
 }
 
-func ToComputeImage(src image.Image) *image.Gray {
-	width := src.Bounds().Size().X
-	height := src.Bounds().Size().Y
-
-	m := image.NewGray(image.Rect(0, 0, width, height))
-
-	for x := 0; x < width; x += 1 {
-		for y := 0; y < width; y += 1 {
-			m.Set(x, y, src.At(x, y))
-		}
-	}
-
-	return m
-}
-
 func saveJPEGToFolder(name string, img image.Image) {
 	f, e := os.Create(name)
 	if e != nil {
@@ -88,11 +97,167 @@ func loadJPEGFromFolder(name string) image.Image {
 		f.Close()
 		return img
 	}
-
 }
 
-/// Compute Stuff
+func saveAllGIFToFolder(name string, imgGif *gif.GIF) {
+	f, e := os.Create(name)
+	if e != nil {
+		log.Println("Failed to Write", name, e)
+	} else {
+		gif.EncodeAll(f, imgGif)
+		f.Close()
+	}
+}
 
+func saveGIFToFolder(name string, img image.Image) {
+	f, e := os.Create(name)
+	if e != nil {
+		log.Println("Failed to Write", name, e)
+	} else {
+		gif.Encode(f, img, &gif.Options{NumColors: 16})
+		f.Close()
+	}
+}
+
+func loadGIFromFolder(name string) image.Image {
+	f, e := os.Open(name)
+	if e != nil {
+		log.Println("Failed to Write", name, e)
+		return nil
+	} else {
+		img, _ := gif.Decode(f)
+		f.Close()
+		return img
+	}
+}
+
+// Calculate Pallette
+type colCount struct {
+	c color.RGBA
+	n int
+}
+type colListArr []colCount
+
+func (cl colListArr) Len() int           { return len(cl) }
+func (cl colListArr) Swap(i, j int)      { cl[i], cl[j] = cl[j], cl[i] }
+func (cl colListArr) Less(i, j int) bool { return cl[i].n < cl[j].n }
+
+func getDist(a uint8, b uint8) uint8 {
+	if a > b {
+		return a - b
+	} else {
+		return b - a
+	}
+}
+
+func reduceColours(colList []colCount, numCol int) color.Palette {
+	distThreshold := 4
+	countThreshold := 1
+
+	for len(colList) > numCol {
+		// Merge Any Colours within minDist
+		for i := 0; i < len(colList); i += 1 {
+			colA := colList[i].c
+
+			minDist := []int{0, 0}
+
+			for j := i + 1; j < len(colList); j += 1 {
+				colB := colList[j].c
+				dist := []int{
+					j,
+					int(getDist(colB.R, colA.R)) + int(getDist(colB.G, colA.G)) + int(getDist(colB.B, colA.B)) + int(getDist(colB.A, colA.A)),
+				}
+
+				if (minDist[0] == 0) || (minDist[1] > dist[1]) {
+					minDist = dist
+				}
+			}
+
+			// Close Enough
+			if minDist[1] < distThreshold {
+				a := &colList[i]
+				b := &colList[minDist[0]]
+
+				inv := 1.0 / float64(a.n+b.n)
+				a.c.R = uint8(float64((int(a.c.R)*a.n + int(b.c.R)*b.n)) * inv)
+				a.c.G = uint8(float64((int(a.c.G)*a.n + int(b.c.G)*b.n)) * inv)
+				a.c.B = uint8(float64((int(a.c.B)*a.n + int(b.c.B)*b.n)) * inv)
+				a.c.A = uint8(float64((int(a.c.A)*a.n + int(b.c.A)*b.n)) * inv)
+
+				a.n += b.n
+				b.n = 0
+			}
+
+		}
+
+		// Remove Anything with too few instances
+		newColList := []colCount{}
+		for _, v := range colList {
+			if v.n > countThreshold {
+				newColList = append(newColList, v)
+			}
+		}
+
+		colList = newColList
+
+		// Sort by Occurance
+		sort.Sort(colListArr(colList))
+
+		if len(colList) > (numCol * 4 / 5) {
+
+			finalPal := []color.Color{}
+			for i := 0; i < numCol; i += 1 {
+				finalPal = append(finalPal, colList[i].c)
+			}
+
+			return color.Palette(finalPal)
+		}
+
+		m := numCol - 1
+		if len(colList) < m {
+			m = len(colList) - 1
+		}
+
+		//
+		distThreshold *= 2
+		countThreshold = (colList[m].n+countThreshold)/2 + 1
+	}
+
+	// Export
+	sort.Sort(colListArr(colList))
+
+	finalPal := []color.Color{}
+	for i := 0; i < len(colList); i += 1 {
+		finalPal = append(finalPal, colList[i].c)
+	}
+
+	return finalPal
+}
+
+func getColours(img image.Image) color.Palette {
+	// Gather Colours
+	colMap := make(map[color.RGBA]int)
+	minPt := img.Bounds().Min
+	maxPt := img.Bounds().Max
+	for x := minPt.X; x < maxPt.X; x += 1 {
+		for y := minPt.X; y < maxPt.Y; y += 1 {
+			cr, cg, cb, ca := img.At(x, y).RGBA()
+			cRGBA := color.RGBA{R: uint8(cr), G: uint8(cg), B: uint8(cb), A: uint8(ca)}
+			colMap[cRGBA] += 1
+		}
+	}
+
+	// Convert to Pair Colours
+	colList := []colCount{}
+	for col, num := range colMap {
+		colList = append(colList, colCount{c: col, n: num})
+	}
+
+	return reduceColours(colList, 255)
+}
+
+//------------------------------------------------------------------------------
+// Compute Stuff
 func lumTotal(src *image.Gray) (lum uint8) {
 	lum = 128
 
@@ -104,4 +269,56 @@ func lumTotal(src *image.Gray) (lum uint8) {
 	lum = uint8(lumTotal / len(src.Pix))
 
 	return lum
+}
+
+func ToComputeImage(src image.Image) *image.Gray {
+	width := src.Bounds().Size().X
+	height := src.Bounds().Size().Y
+
+	m := image.NewGray(image.Rect(0, 0, width, height))
+
+	for x := 0; x < width; x += 1 {
+		for y := 0; y < width; y += 1 {
+			m.Set(x, y, src.At(x, y))
+		}
+	}
+
+	return m
+}
+
+//------------------------------------------------------------------------------
+// Lum
+func makeLumTimeline(camObjs []*camObject) image.Image {
+	camHeight := 256
+	width := 100
+	stepHeight := camHeight / tempColourRange
+	height := stepHeight * len(camObjs)
+
+	m := image.NewPaletted(image.Rect(0, 0, width, height), tempColour)
+
+	for camNum, cam := range camObjs {
+		i := len(cam.data) - width
+		if i < 0 {
+			i = 0
+		}
+		x := 0
+
+		for ; i < len(cam.data); i += 1 {
+			y := int(cam.data[i].lum)%tempColourRange + stepHeight*camNum
+			hOff := cam.data[i].lum / uint8(255/tempColourRange)
+			if y == 0 {
+				y = stepHeight*camNum - 1
+				if hOff > 0 {
+					hOff -= 1
+				}
+			}
+
+			for ; y >= (stepHeight * camNum); y -= 1 {
+				m.SetColorIndex(x, y, hOff+1)
+			}
+			x += 1
+		}
+	}
+
+	return m
 }
