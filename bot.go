@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"image"
 	"time"
 
 	"github.com/tucnak/telebot"
@@ -54,15 +53,7 @@ func startBot(camObjs []*camObject) {
 			bot.SendMessage(message.Chat, text, &replySendOpt)
 		} else if message.Text == "/cam" {
 
-			imgList := []image.Image{}
-			for _, v := range camObjs {
-				v.lock.Lock()
-				imgList = append(imgList, v.lastImg)
-				v.lock.Unlock()
-			}
-
-			finalImg := mergeImage(imgList)
-			saveJPEGToFolder("_temp.jpg", finalImg)
+			saveJPEGToFolder("_temp.jpg", mergeCamFeeds(camObjs))
 
 			photofile, _ := telebot.NewFile("_temp.jpg")
 			photo := telebot.Photo{File: photofile}

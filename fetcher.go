@@ -106,3 +106,92 @@ func saveLoopToFile(co *camObject, inImg <-chan image.Image) {
 		i = (i + 1) % co.filesToLoop
 	}
 }
+
+//------------------------------------------------------------------------------
+// Merge Camera Feeds
+func mergeCamFeeds(camObjs []*camObject) image.Image {
+	imgList := []image.Image{}
+	for _, v := range camObjs {
+		v.lock.Lock()
+		imgList = append(imgList, v.lastImg)
+		v.lock.Unlock()
+	}
+
+	finalImg := mergeImage(imgList)
+	return finalImg
+}
+
+//------------------------------------------------------------------------------
+// Lum
+func makeLumTimeline(camObjs []*camObject) *image.Paletted {
+	camHeight := 256
+	width := 100
+	stepHeight := camHeight / tempColourRange
+	height := stepHeight * len(camObjs)
+
+	m := image.NewPaletted(image.Rect(0, 0, width, height), tempColour)
+
+	for camNum, cam := range camObjs {
+		i := len(cam.data) - width
+		if i < 0 {
+			i = 0
+		}
+		x := 0
+
+		for ; i < len(cam.data); i += 1 {
+			y := int(cam.data[i].lum)%tempColourRange + stepHeight*camNum
+			hOff := cam.data[i].lum / uint8(255/tempColourRange)
+			if y == 0 {
+				y = stepHeight*camNum - 1
+				if hOff > 0 {
+					hOff -= 1
+				}
+			}
+
+			for ; y >= (stepHeight * camNum); y -= 1 {
+				m.SetColorIndex(x, y, hOff+1)
+			}
+			x += 1
+		}
+	}
+
+	return m
+}
+
+//
+/*
+func makePaletted(img image.Image) *image.Paletted {
+
+
+		for _, v := range camObjs {
+						v.lock.Lock()
+						gifData := gif.GIF{
+							LoopCount: -1,
+						}
+
+						numImg := len(v.imgBuffer)
+
+						palImages := make([]*image.Paletted, numImg, numImg)
+						gifData.Disposal = make([]byte, numImg, numImg)
+						gifData.Delay = make([]int, numImg, numImg)
+
+						for i, img := range v.imgBuffer {
+							newPal := getColours(img)
+							newPalImg := image.NewPaletted(img.Bounds(), newPal)
+							draw.Draw(newPalImg, img.Bounds(), img, image.ZP, draw.Over)
+
+							saveGIFToFolder(fmt.Sprintf("_%s_%d.gif", v.name, i), newPalImg)
+
+							palImages = append(palImages, newPalImg)
+							gifData.Disposal[i] = gif.DisposalBackground
+							gifData.Delay[i] = 500
+						}
+						v.lock.Unlock()
+
+						gifData.Image = palImages
+
+						filename := fmt.Sprintf("_%s.gif", v.name)
+						saveAllGIFToFolder(filename, &gifData)
+
+}
+*/

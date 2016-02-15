@@ -9,6 +9,8 @@ import (
 	"log"
 	"os"
 	"sort"
+
+	"github.com/disintegration/gift"
 )
 
 var (
@@ -109,12 +111,12 @@ func saveAllGIFToFolder(name string, imgGif *gif.GIF) {
 	}
 }
 
-func saveGIFToFolder(name string, img image.Image) {
+func saveGIFToFolder(name string, palImg *image.Paletted) {
 	f, e := os.Create(name)
 	if e != nil {
 		log.Println("Failed to Write", name, e)
 	} else {
-		gif.Encode(f, img, &gif.Options{NumColors: 16})
+		gif.Encode(f, palImg, &gif.Options{NumColors: len(palImg.Palette)})
 		f.Close()
 	}
 }
@@ -234,13 +236,13 @@ func reduceColours(colList []colCount, numCol int) color.Palette {
 	return finalPal
 }
 
-func getColours(img image.Image) color.Palette {
+func getColours(img image.Image) []colCount {
 	// Gather Colours
 	colMap := make(map[color.RGBA]int)
 	minPt := img.Bounds().Min
 	maxPt := img.Bounds().Max
 	for x := minPt.X; x < maxPt.X; x += 1 {
-		for y := minPt.X; y < maxPt.Y; y += 1 {
+		for y := minPt.Y; y < maxPt.Y; y += 1 {
 			cr, cg, cb, ca := img.At(x, y).RGBA()
 			cRGBA := color.RGBA{R: uint8(cr), G: uint8(cg), B: uint8(cb), A: uint8(ca)}
 			colMap[cRGBA] += 1
@@ -253,7 +255,26 @@ func getColours(img image.Image) color.Palette {
 		colList = append(colList, colCount{c: col, n: num})
 	}
 
-	return reduceColours(colList, 255)
+	return colList
+}
+
+//------------------------------------------------------------------------------
+// Outline Image
+func outlineImg(img draw.Image, col color.Color) image.Image {
+	minPt := img.Bounds().Min
+	maxPt := img.Bounds().Max
+
+	for x := minPt.X; x < maxPt.X; x += 1 {
+		img.Set(x, minPt.Y, col)
+		img.Set(x, maxPt.Y-1, col)
+	}
+
+	for y := minPt.X; y < maxPt.Y; y += 1 {
+		img.Set(minPt.X, y, col)
+		img.Set(maxPt.X-1, y, col)
+	}
+
+	return img
 }
 
 //------------------------------------------------------------------------------
@@ -287,38 +308,19 @@ func ToComputeImage(src image.Image) *image.Gray {
 }
 
 //------------------------------------------------------------------------------
-// Lum
-func makeLumTimeline(camObjs []*camObject) image.Image {
-	camHeight := 256
-	width := 100
-	stepHeight := camHeight / tempColourRange
-	height := stepHeight * len(camObjs)
+// Paletted
+func makePaletted(img image.Image, numCol int) *image.Paletted {
+	colList := getColours(img)
+	newPal := reduceColours(colList, numCol)
 
-	m := image.NewPaletted(image.Rect(0, 0, width, height), tempColour)
+	newPalImg := image.NewPaletted(img.Bounds(), newPal)
+	draw.Draw(newPalImg, img.Bounds(), img, image.ZP, draw.Over)
 
-	for camNum, cam := range camObjs {
-		i := len(cam.data) - width
-		if i < 0 {
-			i = 0
-		}
-		x := 0
-
-		for ; i < len(cam.data); i += 1 {
-			y := int(cam.data[i].lum)%tempColourRange + stepHeight*camNum
-			hOff := cam.data[i].lum / uint8(255/tempColourRange)
-			if y == 0 {
-				y = stepHeight*camNum - 1
-				if hOff > 0 {
-					hOff -= 1
-				}
-			}
-
-			for ; y >= (stepHeight * camNum); y -= 1 {
-				m.SetColorIndex(x, y, hOff+1)
-			}
-			x += 1
+	for i := 0; i < len(newPal); i += 1 {
+		for y := i; y < len(newPalImg.Pix); y += newPalImg.Stride {
+			newPalImg.Pix[y] = uint8(i)
 		}
 	}
 
-	return m
+	return newPalImg
 }

@@ -5,14 +5,17 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"image"
+	"image/color"
 	"log"
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
-type CommandFunc func() error
+type CommandFunc func(string) error
 
 const (
 	MAX_IMAGE_PER_CAM = 10
@@ -25,7 +28,7 @@ var (
 	staticFldr   = flag.String("static", "./static", "Static Folder")
 	templateFldr = flag.String("template", "./templates", "Templates Folder")
 	debug        = flag.Bool("debug", false, "enter debug mode")
-	telegram     = flag.Bool("telegram", true, "telegram bot live")
+	telegram     = flag.Bool("telegram", false, "telegram bot live")
 	commandFuncs = make(map[string]CommandFunc)
 )
 
@@ -34,7 +37,7 @@ func init() {
 
 	switch runtime.GOOS {
 	case "windows":
-		commandFuncs["clear"] = func() error {
+		commandFuncs["clear"] = func(string) error {
 			cmd := exec.Command("cmd", "/c", "cls")
 			cmd.Stdout = os.Stdout
 			cmd.Run()
@@ -44,11 +47,12 @@ func init() {
 	case "linux":
 		fallthrough
 	default:
-		commandFuncs["clear"] = func() error {
+		commandFuncs["clear"] = func(string) error {
 			print("\033[H\033[2J")
 			return nil
 		}
 	}
+
 }
 
 func spltFunc(data []byte, atEOF bool) (advance int, token []byte, err error) {
@@ -65,7 +69,7 @@ func spltFunc(data []byte, atEOF bool) (advance int, token []byte, err error) {
 }
 
 func main() {
-	commandFuncs["clear"]()
+	commandFuncs["clear"]("clear")
 	flag.Parse()
 	if *debug {
 		log.Println("Debug Active")
@@ -94,6 +98,31 @@ func main() {
 	}
 
 	// go startUploader(wf)
+	commandFuncs["cam"] = func(string) error {
+		saveJPEGToFolder("_mergecam.jpg", mergeCamFeeds(camList))
+		return nil
+	}
+
+	commandFuncs["lum"] = func(string) error {
+		saveGIFToFolder("_lum.gif", outlineImg(makeLumTimeline(camList), color.Black).(*image.Paletted))
+		return nil
+	}
+
+	commandFuncs["pal"] = func(line string) error {
+		var numCol int
+		var err error
+
+		tok := strings.Split(line, " ")
+		if len(tok) > 1 {
+			numCol, err = strconv.Atoi(tok[1])
+			if err != nil {
+				numCol = 255
+			}
+		}
+
+		saveGIFToFolder("_pal.gif", makePaletted(camList[0].lastImg, numCol))
+		return nil
+	}
 
 	// Running Loop
 	if *telegram {
@@ -113,11 +142,11 @@ func commandLoop() {
 		fmt.Println("Enter Command: ")
 		select {
 		case line := <-lines:
-			line = strings.ToLower(line)
+			cmd := strings.ToLower(strings.Split(line, " ")[0])
 
-			valFunc, ok := commandFuncs[line]
+			valFunc, ok := commandFuncs[cmd]
 			if ok {
-				err := valFunc()
+				err := valFunc(line)
 
 				if err != nil {
 					log.Printf("Error [%s]: %s", line, err.Error())
@@ -126,7 +155,7 @@ func commandLoop() {
 				return
 			} else {
 				log.Printf("Unknown command: %s", line)
-				listCommands()
+				listCommands("")
 			}
 
 		}
@@ -148,7 +177,7 @@ func scanForInput() chan string {
 	return lines
 }
 
-func listCommands() error {
+func listCommands(string) error {
 	commandOut := "Commands: "
 	for i, _ := range commandFuncs {
 		commandOut += i + ", "
