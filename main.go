@@ -104,7 +104,7 @@ func main() {
 	}
 
 	commandFuncs["lum"] = func(string) error {
-		saveGIFToFolder("_lum.gif", outlineImg(makeLumTimeline(camList), color.Black).(*image.Paletted))
+		saveGIFToFolder("_lum.gif", outlineImg(makeLumTimeline(camList), color.Black).(*image.Paletted), 255)
 		return nil
 	}
 
@@ -120,7 +120,7 @@ func main() {
 			}
 		}
 
-		saveGIFToFolder("_pal.gif", makePaletted(camList[0].lastImg, numCol))
+		saveGIFToFolder("_pal.gif", camList[0].lastImg, numCol)
 		return nil
 	}
 

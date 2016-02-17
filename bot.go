@@ -35,8 +35,8 @@ func startBot(camObjs []*camObject) {
 		ParseMode: telebot.ModeMarkdown,
 		ReplyMarkup: telebot.ReplyMarkup{
 			ForceReply:      true,
-			CustomKeyboard:  [][]string{[]string{"/cam", "/lum", "/gif"}},
-			OneTimeKeyboard: true,
+			CustomKeyboard:  [][]string{[]string{"/cam", "/lum"}},
+			OneTimeKeyboard: false,
 			ResizeKeyboard:  true,
 		}}
 
@@ -99,7 +99,7 @@ func startBot(camObjs []*camObject) {
 			*/
 		} else if message.Text == "/lum" {
 
-			saveGIFToFolder("_temp.gif", makeLumTimeline(camObjs))
+			saveGIFToFolder("_temp.gif", makeLumTimeline(camObjs), 255)
 
 			photofile, _ := telebot.NewFile("_temp.gif")
 			photo := telebot.Photo{File: photofile}
