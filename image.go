@@ -55,7 +55,7 @@ func mergeImage(imgs []image.Image) image.Image {
 			image.Rect(0, height, v.Bounds().Size().X, h+height),
 			v,
 			v.Bounds().Min,
-			draw.Over)
+			draw.Src)
 
 		height += h
 	}
@@ -174,16 +174,8 @@ func lumTotal(src *image.Gray) (lum uint8) {
 }
 
 func ToComputeImage(src image.Image) *image.Gray {
-	width := src.Bounds().Size().X
-	height := src.Bounds().Size().Y
-
-	m := image.NewGray(image.Rect(0, 0, width, height))
-
-	for x := 0; x < width; x += 1 {
-		for y := 0; y < width; y += 1 {
-			m.Set(x, y, src.At(x, y))
-		}
-	}
+	m := image.NewGray(src.Bounds())
+	draw.Draw(m, m.Bounds(), src, image.ZP, draw.Src)
 
 	return m
 }

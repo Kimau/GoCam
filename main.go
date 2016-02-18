@@ -126,8 +126,9 @@ func main() {
 
 	// Running Loop
 	if *telegram {
+
 		log.Println("Running Loop")
-		startBot(camList)
+		go startBot(camList)
 	}
 	commandLoop()
 

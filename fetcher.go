@@ -4,7 +4,12 @@
 package main
 
 import (
+	"fmt"
 	"image"
+	"image/color"
+	"image/color/palette"
+	"image/draw"
+	"image/gif"
 	"log"
 	"net/http"
 	"sync"
@@ -77,33 +82,64 @@ func fetchMPEGCamLoop(co *camObject, outImg chan image.Image) {
 func saveLoopToFile(co *camObject, inImg <-chan image.Image) {
 	i := 0
 	var dataResult *computeData = nil
+	var prevResult *computeData = nil
+	addImg := true
+	prevHour := time.Now().Hour()
 
 	for {
 		img := <-inImg
-		co.lock.Lock()
-		if dataResult != nil {
-			co.data = append(co.data, *dataResult)
-		}
-		co.imgCur = i
-		co.lastImg = img
-		co.imgBuffer[i] = co.lastImg
-		computeImg := ToComputeImage(img)
-		co.lock.Unlock()
-
-		// Do Compute Image
+		addImg = true
 		dataResult = &computeData{
 			stamp: time.Now(),
 		}
 
+		// Do Compute Image
+		computeImg := ToComputeImage(img)
 		dataResult.lum = lumTotal(computeImg)
-		if len(co.data) == 0 {
-			dataResult.frameDuration = 0
+
+		if prevResult == nil {
+			dataResult.frameDuration = time.Millisecond * 500
 		} else {
-			prev := &co.data[len(co.data)-1]
-			dataResult.frameDuration = dataResult.stamp.Sub(prev.stamp)
+			dataResult.frameDuration = dataResult.stamp.Sub(prevResult.stamp)
+
+			var diff uint8
+			if dataResult.lum > prevResult.lum {
+				diff = dataResult.lum - prevResult.lum
+			} else {
+				diff = prevResult.lum - dataResult.lum
+			}
+			if diff < 3 {
+				addImg = false
+			}
+
 		}
 
-		i = (i + 1) % co.filesToLoop
+		if addImg {
+			prevResult = dataResult
+
+			co.lock.Lock()
+			co.data = append(co.data, *dataResult)
+
+			co.imgCur = i
+			co.lastImg = img
+			co.imgBuffer[i] = co.lastImg
+			co.lock.Unlock()
+
+			// Advance Image
+			i = (i + 1) % co.filesToLoop
+		}
+
+		// Do Hourly Reports
+		newHour := time.Now().Hour()
+		if prevHour != newHour {
+			prevHour = newHour
+			co.lock.Lock()
+			co.data = []computeData{*prevResult}
+			lumImg := makeLumHourlyImg(co)
+			saveGIFToFolder(fmt.Sprintf("_report_%s_%d", co.name, newHour), lumImg, len(lumImg.Palette))
+			co.lock.Unlock()
+		}
+
 	}
 }
 
@@ -113,6 +149,10 @@ func mergeCamFeeds(camObjs []*camObject) image.Image {
 	imgList := []image.Image{}
 	for _, v := range camObjs {
 		v.lock.Lock()
+		if v.lastImg == nil {
+			log.Println("Empty Image")
+			return nil
+		}
 		imgList = append(imgList, v.lastImg)
 		v.lock.Unlock()
 	}
@@ -123,6 +163,50 @@ func mergeCamFeeds(camObjs []*camObject) image.Image {
 
 //------------------------------------------------------------------------------
 // Lum
+func makeLumHourlyImg(co *camObject) *image.Paletted {
+	// Make Colour Pal
+	cg := ColourGrad([]GradStop{
+		{0.0, color.RGBA{0, 0, 255, 255}},
+		{0.5, color.RGBA{0, 255, 0, 255}},
+		{1.0, color.RGBA{255, 0, 0, 255}},
+	})
+	tempPal := cg.makePal(0.0, 1.0, 256)
+	m := image.NewPaletted(image.Rect(0, 0, 60, 60), tempPal)
+
+	// Setup Data
+	endTime := co.data[len(co.data)-1].stamp
+	t := endTime.Add(-time.Hour)
+
+	offset := 0
+	pOff := t.Second()
+timeloop:
+	for t.Before(endTime) {
+		for ; co.data[offset].stamp.Before(t); offset += 1 {
+			if (offset + 1) >= len(co.data) {
+				break timeloop
+			}
+		}
+
+		tNext := t.Add(time.Second)
+		if co.data[offset].stamp.After(tNext) == false {
+			goto endTimeLoop
+		}
+
+		// Set Pixel
+		m.Pix[pOff] = co.data[offset].lum
+
+	endTimeLoop:
+		pOff += 1
+		if pOff >= len(m.Pix) {
+			pOff = 0
+		}
+		t = tNext
+	}
+
+	m.Pix[pOff] = 0
+	return m
+}
+
 func makeLumTimeline(camObjs []*camObject) *image.Paletted {
 	camHeight := 256
 	width := 100
@@ -159,39 +243,57 @@ func makeLumTimeline(camObjs []*camObject) *image.Paletted {
 }
 
 //
-/*
-func makePaletted(img image.Image) *image.Paletted {
+func makeCamGIF(co *camObject) *gif.GIF {
 
+	co.lock.Lock()
+	numImg := len(co.imgBuffer)
 
-		for _, v := range camObjs {
-						v.lock.Lock()
-						gifData := gif.GIF{
-							LoopCount: -1,
-						}
+	g := gif.GIF{
+		Image:     make([]*image.Paletted, numImg, numImg),
+		Delay:     make([]int, numImg, numImg),
+		LoopCount: -1,
+		Disposal:  make([]byte, numImg, numImg),
+	}
 
-						numImg := len(v.imgBuffer)
+	hasNill := false
 
-						palImages := make([]*image.Paletted, numImg, numImg)
-						gifData.Disposal = make([]byte, numImg, numImg)
-						gifData.Delay = make([]int, numImg, numImg)
+	for i, img := range co.imgBuffer {
 
-						for i, img := range v.imgBuffer {
-							newPal := getColours(img)
-							newPalImg := image.NewPaletted(img.Bounds(), newPal)
-							draw.Draw(newPalImg, img.Bounds(), img, image.ZP, draw.Over)
+		g.Disposal[i] = gif.DisposalBackground
+		g.Delay[i] = 50
 
-							saveGIFToFolder(fmt.Sprintf("_%s_%d.gif", v.name, i), newPalImg)
+		if img == nil {
+			hasNill = true
+			g.Image[i] = nil
+			continue
+		}
 
-							palImages = append(palImages, newPalImg)
-							gifData.Disposal[i] = gif.DisposalBackground
-							gifData.Delay[i] = 500
-						}
-						v.lock.Unlock()
+		b := img.Bounds()
 
-						gifData.Image = palImages
+		pm, ok := img.(*image.Paletted)
+		if !ok {
+			pm = image.NewPaletted(b, palette.Plan9[:255])
+			// pm.Palette = draw.FloydSteinberg.Quantize(make(color.Palette, 0, 256), img)
+			draw.FloydSteinberg.Draw(pm, b, img, image.ZP)
+		}
+		g.Image[i] = pm
 
-						filename := fmt.Sprintf("_%s.gif", v.name)
-						saveAllGIFToFolder(filename, &gifData)
+	}
+	co.lock.Unlock()
+
+	if hasNill {
+		i := 0
+		for _, v := range g.Image {
+			if v != nil {
+				g.Image[i] = v
+				i += 1
+			}
+		}
+		g.Image = g.Image[:i]
+		g.Delay = g.Delay[:i]
+		g.Disposal = g.Disposal[:i]
+	}
+
+	return &g
 
 }
-*/

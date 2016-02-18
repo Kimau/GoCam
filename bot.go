@@ -31,6 +31,8 @@ func startBot(camObjs []*camObject) {
 	messages := make(chan telebot.Message)
 	bot.Listen(messages, REFRESH_TIME)
 
+	time.Sleep(1 * time.Second)
+
 	replySendOpt := telebot.SendOptions{
 		ParseMode: telebot.ModeMarkdown,
 		ReplyMarkup: telebot.ReplyMarkup{
@@ -59,44 +61,16 @@ func startBot(camObjs []*camObject) {
 			photo := telebot.Photo{File: photofile}
 			_ = bot.SendPhoto(message.Chat, &photo, &replySendOpt)
 		} else if message.Text == "/gif" {
-			/*
-				// Run once for each camera
-				for _, v := range camObjs {
-					v.lock.Lock()
-					gifData := gif.GIF{
-						LoopCount: -1,
-					}
+			bot.SendMessage(message.Chat, "GIF can take a second", &replySendOpt)
 
-					numImg := len(v.imgBuffer)
+			for _, cam := range camObjs {
+				filename := fmt.Sprintf("_moving%s.gif", cam.name)
+				saveAllGIFToFolder(filename, makeCamGIF(cam))
+				photofile, _ := telebot.NewFile(filename)
+				photo := telebot.Photo{File: photofile}
+				_ = bot.SendPhoto(message.Chat, &photo, &replySendOpt)
+			}
 
-					palImages := make([]*image.Paletted, numImg, numImg)
-					gifData.Disposal = make([]byte, numImg, numImg)
-					gifData.Delay = make([]int, numImg, numImg)
-
-					for i, img := range v.imgBuffer {
-						newPal := getColours(img)
-						newPalImg := image.NewPaletted(img.Bounds(), newPal)
-						draw.Draw(newPalImg, img.Bounds(), img, image.ZP, draw.Over)
-
-						saveGIFToFolder(fmt.Sprintf("_%s_%d.gif", v.name, i), newPalImg)
-
-						palImages = append(palImages, newPalImg)
-						gifData.Disposal[i] = gif.DisposalBackground
-						gifData.Delay[i] = 500
-					}
-					v.lock.Unlock()
-
-					gifData.Image = palImages
-
-					filename := fmt.Sprintf("_%s.gif", v.name)
-					saveAllGIFToFolder(filename, &gifData)
-
-					photofile, _ := telebot.NewFile(filename)
-					photo := telebot.Photo{File: photofile}
-					_ = bot.SendPhoto(message.Chat, &photo, &replySendOpt)
-				}
-				// end
-			*/
 		} else if message.Text == "/lum" {
 
 			saveGIFToFolder("_temp.gif", makeLumTimeline(camObjs), 255)
