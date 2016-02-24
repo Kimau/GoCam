@@ -136,7 +136,7 @@ func saveLoopToFile(co *camObject, inImg <-chan image.Image) {
 			co.lock.Lock()
 			co.data = []computeData{*prevResult}
 			lumImg := makeLumHourlyImg(co)
-			saveGIFToFolder(fmt.Sprintf("_report_%s_%d", co.name, newHour), lumImg, len(lumImg.Palette))
+			saveGIFToFolder(fmt.Sprintf("_report_%s_%d.gif", co.name, newHour), lumImg, len(lumImg.Palette))
 			co.lock.Unlock()
 		}
 
@@ -205,6 +205,8 @@ timeloop:
 
 	m.Pix[pOff] = 0
 	return m
+
+	Write a bloody unit test for this
 }
 
 func makeLumTimeline(camObjs []*camObject) *image.Paletted {
