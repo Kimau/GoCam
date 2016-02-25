@@ -206,7 +206,7 @@ timeloop:
 	m.Pix[pOff] = 0
 	return m
 
-	Write a bloody unit test for this
+	//Write a bloody unit test for this
 }
 
 func makeLumTimeline(camObjs []*camObject) *image.Paletted {
