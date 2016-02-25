@@ -3,6 +3,7 @@ package main
 import (
 	"image"
 	"image/color"
+	"math/rand"
 	"testing"
 	"time"
 )
@@ -31,23 +32,86 @@ func TestGrad(t *testing.T) {
 	saveGIFToFolder("_testPal.gif", m, numColours)
 }
 
-func TestHourReport(t *testing.T) {
-	co := camObject{
-		name:        "_test",
+func TestLumTimeline(t *testing.T) {
+	co := []*camObject{{
+		name:        "_testReportRand",
 		folder:      CAPTURE_FOLDER,
 		imgCur:      0,
 		filesToLoop: MAX_IMAGE_PER_CAM,
-		imgBuffer:   make([]image.Image, MAX_IMAGE_PER_CAM, MAX_IMAGE_PER_CAM),
 		data:        []computeData{},
+	},
+		{
+			name:        "_testReportScale",
+			folder:      CAPTURE_FOLDER,
+			imgCur:      0,
+			filesToLoop: MAX_IMAGE_PER_CAM,
+			data:        []computeData{},
+		},
 	}
 
-	camImageChan := make(chan image.Image)
 	timeStart := time.Now().Add(-time.Hour * 2)
+	timeDFactor := 0.45 + rand.Float32()*0.15
+	var timCount uint8 = 0
 
-	for t := timeStart; t < time.Now(); t = t.Add(time.Second * 0.5) {
-		data = append(data, computeData{stamp: t, lum: 0, frameDuration: 500})
+	for t := timeStart; time.Now().After(t); t = t.Add(time.Duration(float32(time.Second) * timeDFactor)) {
+		co[0].data = append(co[0].data, computeData{
+			stamp:         t,
+			lum:           uint8(rand.Intn(0xFF)),
+			frameDuration: 450 + time.Duration(rand.Intn(100)),
+		})
+
+		co[1].data = append(co[1].data, computeData{
+			stamp:         t,
+			lum:           timCount,
+			frameDuration: 450 + time.Duration(rand.Intn(100)),
+		})
+
+		timCount += 1
+		timeDFactor = 0.45 + rand.Float32()*0.15
 	}
 
-	m := makeLumTimeline([]*camObject{&co})
-	saveGIFToFolder("_testReport.gif", m, 256)
+	m := makeLumTimeline(co)
+	saveGIFToFolder("_testTimeline.gif", m, 256)
+}
+
+func TestHourReport(t *testing.T) {
+	co := []*camObject{{
+		name:        "_testReportRand",
+		folder:      CAPTURE_FOLDER,
+		imgCur:      0,
+		filesToLoop: MAX_IMAGE_PER_CAM,
+		data:        []computeData{},
+	},
+		{
+			name:        "_testReportScale",
+			folder:      CAPTURE_FOLDER,
+			imgCur:      0,
+			filesToLoop: MAX_IMAGE_PER_CAM,
+			data:        []computeData{},
+		},
+	}
+
+	timeStart := time.Now().Add(-time.Hour * 2)
+	timeDFactor := 0.45 + rand.Float32()*0.15
+	var timCount uint8 = 0
+
+	for t := timeStart; time.Now().After(t); t = t.Add(time.Duration(float32(time.Second) * timeDFactor)) {
+		co[0].data = append(co[0].data, computeData{
+			stamp:         t,
+			lum:           uint8(rand.Intn(0xFF)),
+			frameDuration: 450 + time.Duration(rand.Intn(100)),
+		})
+
+		co[1].data = append(co[1].data, computeData{
+			stamp:         t,
+			lum:           timCount,
+			frameDuration: 450 + time.Duration(rand.Intn(100)),
+		})
+
+		timCount += 1
+		timeDFactor = 0.45 + rand.Float32()*0.15
+	}
+
+	saveGIFToFolder("_testReport0.gif", makeLumHourlyImg(co[0]), 256)
+	saveGIFToFolder("_testReport1.gif", makeLumHourlyImg(co[1]), 256)
 }
