@@ -164,14 +164,19 @@ func mergeCamFeeds(camObjs []*camObject) image.Image {
 //------------------------------------------------------------------------------
 // Lum
 func makeLumHourlyImg(co *camObject) *image.Paletted {
+
 	// Make Colour Pal
+	numColours := 256
+	w := 60
+	h := 60
+
 	cg := ColourGrad([]GradStop{
 		{0.0, color.RGBA{0, 0, 255, 255}},
 		{0.5, color.RGBA{0, 255, 0, 255}},
 		{1.0, color.RGBA{255, 0, 0, 255}},
 	})
-	tempPal := cg.makePal(0.0, 1.0, 256)
-	m := image.NewPaletted(image.Rect(0, 0, 60, 60), tempPal)
+	tempPal := cg.makePal(0.0, 1.0, numColours)
+	m := image.NewPaletted(image.Rect(0, 0, w, h), tempPal)
 
 	// Setup Data
 	endTime := co.data[len(co.data)-1].stamp
@@ -181,21 +186,23 @@ func makeLumHourlyImg(co *camObject) *image.Paletted {
 	pOff := t.Second()
 timeloop:
 	for t.Before(endTime) {
-		for ; co.data[offset].stamp.Before(t); offset += 1 {
+
+		// Check offset isn't too far into the future
+		tNext := t.Add(time.Second)
+
+		// Run offset until current time
+		for co.data[offset].stamp.Before(t) {
 			if (offset + 1) >= len(co.data) {
 				break timeloop
 			}
-		}
 
-		tNext := t.Add(time.Second)
-		if co.data[offset].stamp.After(tNext) == false {
-			goto endTimeLoop
+			offset += 1
 		}
 
 		// Set Pixel
 		m.Pix[pOff] = co.data[offset].lum
 
-	endTimeLoop:
+		//endTimeLoop:
 		pOff += 1
 		if pOff >= len(m.Pix) {
 			pOff = 0
@@ -203,10 +210,15 @@ timeloop:
 		t = tNext
 	}
 
+	// End Point
 	m.Pix[pOff] = 0
-	return m
+	if pOff > 0 {
+		m.Pix[pOff-1] = uint8(numColours - 1)
+	} else {
+		m.Pix[len(m.Pix)-1] = uint8(numColours - 1)
+	}
 
-	//Write a bloody unit test for this
+	return m
 }
 
 func makeLumTimeline(camObjs []*camObject) *image.Paletted {

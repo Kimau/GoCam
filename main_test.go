@@ -92,24 +92,25 @@ func TestHourReport(t *testing.T) {
 	}
 
 	timeStart := time.Now().Add(-time.Hour * 2)
-	timeDFactor := 0.45 + rand.Float32()*0.15
+	lastFrame := 450 + time.Duration(rand.Intn(100))
 	var timCount uint8 = 0
 
-	for t := timeStart; time.Now().After(t); t = t.Add(time.Duration(float32(time.Second) * timeDFactor)) {
+	for t := timeStart; time.Now().After(t); t = t.Add(time.Duration(time.Millisecond * lastFrame)) {
+		lastFrame = 450 + time.Duration(rand.Intn(100))
+
 		co[0].data = append(co[0].data, computeData{
 			stamp:         t,
 			lum:           uint8(rand.Intn(0xFF)),
-			frameDuration: 450 + time.Duration(rand.Intn(100)),
+			frameDuration: lastFrame,
 		})
 
 		co[1].data = append(co[1].data, computeData{
 			stamp:         t,
 			lum:           timCount,
-			frameDuration: 450 + time.Duration(rand.Intn(100)),
+			frameDuration: lastFrame,
 		})
 
 		timCount += 1
-		timeDFactor = 0.45 + rand.Float32()*0.15
 	}
 
 	saveGIFToFolder("_testReport0.gif", makeLumHourlyImg(co[0]), 256)
