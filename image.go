@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/bamiaux/rez"
 	//"github.com/disintegration/gift"
 )
 
@@ -173,9 +174,85 @@ func lumTotal(src *image.Gray) (lum uint8) {
 	return lum
 }
 
-func ToComputeImage(src image.Image) *image.Gray {
+func ToComputeImageOld(src image.Image) *image.Gray {
 	m := image.NewGray(src.Bounds())
 	draw.Draw(m, m.Bounds(), src, image.ZP, draw.Src)
 
 	return m
+}
+
+func ToComputeImage(src image.Image) *image.Gray {
+	// Small M
+	bSize := src.Bounds().Size()
+	smallBounds := image.Rect(0, 0, bSize.X/16, bSize.Y/16)
+	smallM := image.NewGray(smallBounds)
+
+	rez.Convert(smallM, src, rez.NewBilinearFilter())
+	return smallM
+}
+
+func ToComputeImageCol(src image.Image) *image.RGBA {
+	// Small M
+	//bSize := src.Bounds().Size()
+	smallBounds := src.Bounds() // image.Rect(0, 0, bSize.X/16, bSize.Y/16)
+	smallM := image.NewRGBA(smallBounds)
+
+	rez.Convert(smallM, src, rez.NewBilinearFilter())
+
+	return smallM
+}
+
+type ComMaker struct {
+	bound         image.Rectangle
+	width, height int
+	rConv         rez.Converter
+}
+
+func MakeComputeMaker(src image.Image) *ComMaker {
+	b := src.Bounds()
+	sz := b.Size()
+	width := sz.X / 8
+	height := sz.Y / 8
+	smallB := image.Rect(0, 0, width, height)
+
+	cm := ComMaker{
+		width:  sz.X / 8,
+		height: sz.Y / 8,
+		bound:  smallB,
+	}
+
+	// Make Grey Img
+	gSrc := image.NewGray(b)
+	draw.Draw(gSrc, b, src, image.ZP, draw.Src)
+
+	// Make Smaller
+	gDst := image.NewGray(smallB)
+
+	// Prep Conversion
+	cfg, err := rez.PrepareConversion(gDst, gSrc)
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
+
+	cm.rConv, err = rez.NewConverter(cfg, rez.NewBilinearFilter())
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
+
+	return &cm
+}
+
+func (cm *ComMaker) Convert(src image.Image) *image.Gray {
+	// Make Grey Img
+	b := src.Bounds()
+	gSrc := image.NewGray(b)
+	draw.Draw(gSrc, b, src, image.ZP, draw.Src)
+
+	// Make Smaller
+	gDst := image.NewGray(cm.bound)
+	cm.rConv.Convert(gDst, gSrc)
+
+	return gDst
 }

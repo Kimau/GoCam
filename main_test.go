@@ -6,6 +6,8 @@ import (
 	"math/rand"
 	"testing"
 	"time"
+
+	"fmt"
 )
 
 func TestGrad(t *testing.T) {
@@ -115,4 +117,27 @@ func TestHourReport(t *testing.T) {
 
 	saveGIFToFolder("_testReport0.gif", makeLumHourlyImg(co[0]), 256)
 	saveGIFToFolder("_testReport1.gif", makeLumHourlyImg(co[1]), 256)
+}
+
+func TestComputeImage(t *testing.T) {
+
+	camImageChan := make(chan image.Image)
+	go fetchMPEGCamLoop("http://admin:admin@192.168.1.99/goform/video", camImageChan)
+
+	img := <-camImageChan
+	saveJPEGToFolder("_testCamRaw.jpg", img)
+
+	cm := MakeComputeMaker(img)
+	if cm == nil {
+		t.Log("Unable to make Compute Maker")
+		t.FailNow()
+	}
+
+	fmt.Println("Converted Made")
+
+	comp := cm.Convert(img)
+	saveJPEGToFolder("_testCamCompute.jpg", comp)
+
+	fmt.Println("Done")
+
 }

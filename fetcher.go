@@ -22,6 +22,7 @@ type computeData struct {
 	stamp         time.Time
 	lum           uint8
 	frameDuration time.Duration
+	img           *image.Gray
 }
 
 type camObject struct {
@@ -48,28 +49,28 @@ func startCamCapture(filename string, address string) *camObject {
 	}
 
 	camImageChan := make(chan image.Image)
-	go fetchMPEGCamLoop(&co, camImageChan)
+	go fetchMPEGCamLoop(co.addr, camImageChan)
 	go saveLoopToFile(&co, camImageChan)
 	return &co
 }
 
-func fetchMPEGCamLoop(co *camObject, outImg chan image.Image) {
+func fetchMPEGCamLoop(addr string, outImg chan image.Image) {
 	var decodeErr error
 	var img image.Image
 
 	for {
-		resp, errA := http.Get(co.addr)
+		resp, errA := http.Get(addr)
 
 		if errA != nil {
-			log.Println(co.addr, errA)
+			log.Println(addr, errA)
 			return
 		}
 
-		log.Println("Fetching... ", co.addr, decodeErr)
+		log.Println("Fetching... ", addr, decodeErr)
 
 		d, err := mjpeg.NewDecoderFromResponse(resp)
 		if err != nil {
-			log.Println("Failed to create Decoder:", co.addr, err)
+			log.Println("Failed to create Decoder:", addr, err)
 			return
 		}
 
@@ -94,8 +95,8 @@ func saveLoopToFile(co *camObject, inImg <-chan image.Image) {
 		}
 
 		// Do Compute Image
-		computeImg := ToComputeImage(img)
-		dataResult.lum = lumTotal(computeImg)
+		dataResult.img = ToComputeImage(img)
+		dataResult.lum = lumTotal(dataResult.img)
 
 		if prevResult == nil {
 			dataResult.frameDuration = time.Millisecond * 500
@@ -154,6 +155,7 @@ func mergeCamFeeds(camObjs []*camObject) image.Image {
 			return nil
 		}
 		imgList = append(imgList, v.lastImg)
+		imgList = append(imgList, v.data[len(v.data)-1].img) // TEMP
 		v.lock.Unlock()
 	}
 
