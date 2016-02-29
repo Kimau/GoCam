@@ -17,7 +17,7 @@ func (cg ColourGrad) makePal(min, max float64, numCol int) color.Palette {
 	p := min
 	pStep := (max - min) / float64(numCol)
 
-	for i, _ := range pal {
+	for i := range pal {
 		pal[i] = cg.getColour(p)
 		p += pStep
 	}

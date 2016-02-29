@@ -180,7 +180,7 @@ func scanForInput() chan string {
 
 func listCommands(string) error {
 	commandOut := "Commands: "
-	for i, _ := range commandFuncs {
+	for i := range commandFuncs {
 		commandOut += i + ", "
 	}
 

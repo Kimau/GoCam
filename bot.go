@@ -11,8 +11,6 @@ const (
 	REFRESH_TIME = 1 * time.Second
 )
 
-var ()
-
 func checkAuth(id int) bool {
 	for _, v := range AUTH_ID_LIST {
 		if v == id {
@@ -37,7 +35,7 @@ func startBot(camObjs []*camObject) {
 		ParseMode: telebot.ModeMarkdown,
 		ReplyMarkup: telebot.ReplyMarkup{
 			ForceReply:      true,
-			CustomKeyboard:  [][]string{[]string{"/cam", "/lum"}},
+			CustomKeyboard:  [][]string{{"/cam", "/lum"}},
 			OneTimeKeyboard: false,
 			ResizeKeyboard:  true,
 		}}

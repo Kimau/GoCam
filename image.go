@@ -8,7 +8,6 @@ import (
 	"image/jpeg"
 	"log"
 	"os"
-
 	//"github.com/disintegration/gift"
 )
 
