@@ -134,9 +134,9 @@ func saveLoopToFile(co *camObject, inImg <-chan image.Image) {
 		if prevHour != newHour {
 			prevHour = newHour
 			co.lock.Lock()
-			co.data = []computeData{*prevResult}
 			lumImg := makeLumHourlyImg(co)
 			saveGIFToFolder(fmt.Sprintf("_report_%s_%d.gif", co.name, newHour), lumImg, len(lumImg.Palette))
+			co.data = []computeData{*prevResult}
 			co.lock.Unlock()
 		}
 
