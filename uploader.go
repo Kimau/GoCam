@@ -1,6 +1,6 @@
 /*  JOB: Upload Images to Drive
 
-*/
+ */
 package main
 
 import (
