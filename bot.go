@@ -20,65 +20,76 @@ func checkAuth(id int) bool {
 	return false
 }
 
-func startBot(camObjs []*camObject) {
-	bot, err := telebot.NewBot(TELEGRAM_SECRET_TOKEN)
-	if err != nil {
-		return
-	}
+type Cambot struct {
+	bot      *telebot.Bot
+	camNames []string
+	camFeeds []chan string
+	messages chan telebot.Message
+}
 
-	messages := make(chan telebot.Message)
-	bot.Listen(messages, REFRESH_TIME)
+func (b *Cambot) AddCamera(camName string, camFeed chan string) {
+	b.camNames = append(b.camNames, camName)
+	b.camFeeds = append(b.camFeeds, camFeed)
+}
 
-	time.Sleep(1 * time.Second)
+func (b *Cambot) ProceessMessage() {
 
 	replySendOpt := telebot.SendOptions{
 		ParseMode: telebot.ModeMarkdown,
 		ReplyMarkup: telebot.ReplyMarkup{
 			ForceReply:      true,
-			CustomKeyboard:  [][]string{{"/cam", "/lum"}},
+			CustomKeyboard:  [][]string{{"/hi"}},
 			OneTimeKeyboard: false,
 			ResizeKeyboard:  true,
 		}}
 
-	for message := range messages {
+messageLoop:
+	for {
+		message, ok := <-b.messages
+		if !ok {
+			return
+		}
 
 		if !checkAuth(message.Sender.ID) {
 			text := fmt.Sprintf("Sorry %s BITCH! You are not my boss. Your ID is %d", message.Sender.FirstName, message.Sender.ID)
-			bot.SendMessage(message.Chat, text, &replySendOpt)
+			b.bot.SendMessage(message.Chat, text, nil)
 			continue
 		}
 
+		replySendOpt.ReplyMarkup.CustomKeyboard = [][]string{{"/hi"}, b.camNames}
+
 		if message.Text == "/hi" {
 			text := fmt.Sprintf("Hello %s your id is %d", message.Sender.FirstName, message.Sender.ID)
-			bot.SendMessage(message.Chat, text, &replySendOpt)
-		} else if message.Text == "/cam" {
-
-			saveJPEGToFolder("_temp.jpg", mergeCamFeeds(camObjs))
-
-			photofile, _ := telebot.NewFile("_temp.jpg")
-			photo := telebot.Photo{File: photofile}
-			_ = bot.SendPhoto(message.Chat, &photo, &replySendOpt)
-		} else if message.Text == "/gif" {
-			bot.SendMessage(message.Chat, "GIF can take a second", &replySendOpt)
-
-			for _, cam := range camObjs {
-				filename := fmt.Sprintf("_moving%s.gif", cam.name)
-				saveAllGIFToFolder(filename, makeCamGIF(cam))
-				photofile, _ := telebot.NewFile(filename)
-				photo := telebot.Photo{File: photofile}
-				_ = bot.SendPhoto(message.Chat, &photo, &replySendOpt)
-			}
-
-		} else if message.Text == "/lum" {
-
-			saveGIFToFolder("_temp.gif", makeLumTimeline(camObjs), 255)
-
-			photofile, _ := telebot.NewFile("_temp.gif")
-			photo := telebot.Photo{File: photofile}
-			_ = bot.SendPhoto(message.Chat, &photo, &replySendOpt)
-
-		} else {
-			bot.SendMessage(message.Chat, "Say */hi*", &replySendOpt)
+			b.bot.SendMessage(message.Chat, text, &replySendOpt)
 		}
+
+		for i, camName := range b.camNames {
+			if message.Text[1:] == camName {
+				fn := <-b.camFeeds[i]
+				photofile, _ := telebot.NewFile(fn)
+				photo := telebot.Photo{File: photofile}
+				_ = b.bot.SendPhoto(message.Chat, &photo, &replySendOpt)
+				continue messageLoop
+			}
+		}
+
+		b.bot.SendMessage(message.Chat, "Say */hi*", &replySendOpt)
 	}
+}
+
+func startBot() *Cambot {
+	var err error
+	var cb Cambot
+
+	cb.bot, err = telebot.NewBot(TELEGRAM_SECRET_TOKEN)
+	if err != nil {
+		return nil
+	}
+
+	cb.messages = make(chan telebot.Message)
+	cb.bot.Listen(cb.messages, REFRESH_TIME)
+
+	go cb.ProceessMessage()
+
+	return &cb
 }

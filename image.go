@@ -174,7 +174,7 @@ func lumTotal(src *image.Gray) (lum uint8) {
 	return lum
 }
 
-func ToComputeImageOld(src image.Image) *image.Gray {
+func ToComputeImageManual(src image.Image) *image.Gray {
 	m := image.NewGray(src.Bounds())
 	draw.Draw(m, m.Bounds(), src, image.ZP, draw.Src)
 

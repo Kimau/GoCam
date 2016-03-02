@@ -14,7 +14,23 @@ import (
 	mjpeg "./mjpeg"
 )
 
-func fetchMPEGCamLoop(addr string, outImg chan image.Image) {
+func captureFilterCameraPipe(addr string, name string) (shutdown chan int, lastFile chan string) {
+
+	shutdown = make(chan int)
+	lastFile = make(chan string)
+	everyFrame := make(chan image.Image)
+	everyBlock := make(chan computeBlock)
+	filterBlock := make(chan computeBlock)
+
+	go fetchMPEGCamLoop(addr, everyFrame, shutdown)
+	go makeComputeBlock(everyFrame, everyBlock)
+	go checkNewImage(everyBlock, filterBlock)
+	go saveLoopToFile(filterBlock, name, lastFile)
+
+	return shutdown, lastFile
+}
+
+func fetchMPEGCamLoop(addr string, outImg chan image.Image, shutdown chan int) {
 	var decodeErr error
 	var img image.Image
 
@@ -35,8 +51,15 @@ func fetchMPEGCamLoop(addr string, outImg chan image.Image) {
 		}
 
 		for decodeErr = d.Decode(&img); decodeErr == nil; decodeErr = d.Decode(&img) {
-			outImg <- img
+			select {
+			case <-shutdown:
+				close(outImg)
+				return
+			default:
+				outImg <- img
+			}
 		}
+
 	}
 }
 
@@ -47,16 +70,20 @@ type computeBlock struct {
 	srcImg     image.Image
 }
 
-func startComputePipe(srcImg chan image.Image, outBlock chan computeBlock) {
-	computeMaker := MakeComputeMaker(<-srcImg)
+func makeComputeBlock(srcImg chan image.Image, outBlock chan computeBlock) {
 	for {
-		cb := computeBlock{
-			stamp:  time.Now(),
-			srcImg: <-srcImg,
+		img, ok := <-srcImg
+		if !ok {
+			close(outBlock)
+			return
 		}
 
-		// Make Compute
-		cb.computeImg = computeMaker.Convert(cb.srcImg)
+		cb := computeBlock{
+			stamp:      time.Now(),
+			srcImg:     img,
+			computeImg: ToComputeImageManual(img),
+		}
+
 		cb.lum = lumTotal(cb.computeImg)
 
 		outBlock <- cb
@@ -67,21 +94,28 @@ func checkNewImage(inBlock chan computeBlock, outBlock chan computeBlock) {
 	var prevBlock computeBlock
 	prevBlock.computeImg = nil
 	for {
-		newBlk := <-inBlock
+		newBlk, ok := <-inBlock
+		if !ok {
+			close(outBlock)
+			return
+		}
 
 		// First Image, Diff Lum or
 		if (prevBlock.computeImg == nil) || (prevBlock.lum != newBlk.lum) {
 			prevBlock = newBlk
 			outBlock <- prevBlock
-			continue
 		}
 	}
 }
 
-func saveLoopToFile(inBlock chan computeBlock, filename string) {
+func saveLoopToFile(inBlock chan computeBlock, filename string, outfilename chan string) {
 	historyBlocks := []computeBlock{}
 	for {
-		newBlk := <-inBlock
+		newBlk, ok := <-inBlock
+		if !ok {
+			close(outfilename)
+			return
+		}
 
 		newBlk.computeImg = nil
 		newBlk.srcImg = nil
@@ -89,7 +123,17 @@ func saveLoopToFile(inBlock chan computeBlock, filename string) {
 		historyBlocks = append(historyBlocks, newBlk)
 
 		// Save To File
-		saveJPEGToFolder(fmt.Sprintf("%s_%s.gif", filename, newBlk.stamp.String()), newBlk.srcImg)
+		newFilename := fmt.Sprintf("%s_%s.gif", filename, newBlk.stamp.String())
+		saveJPEGToFolder(newFilename, newBlk.srcImg)
+
+		// Non Blocking Channel
+		select {
+		case outfilename <- newFilename:
+			break
+		case <-time.After(time.Millisecond):
+			<-outfilename
+			outfilename <- newFilename
+		}
 
 		// Do Hourly Reports
 		if newBlk.stamp.Hour() != historyBlocks[0].stamp.Hour() {
@@ -143,7 +187,7 @@ func makeLumTimeline(blkList []computeBlock) *image.Paletted {
 		hOff := blk.lum
 
 		for off, y := i, 0; y <= int(hOff); off, y = i+y*numColours, y+1 {
-			m.Pix[i] = hOff
+			m.Pix[off] = hOff
 		}
 
 	}

@@ -5,13 +5,10 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"image"
-	"image/color"
 	"log"
 	"os"
 	"os/exec"
 	"runtime"
-	"strconv"
 	"strings"
 )
 
@@ -92,35 +89,10 @@ func main() {
 
 	os.Mkdir(CAPTURE_FOLDER, os.ModePerm)
 
-	camList := []*camObject{
-		startCamCapture("camA", "http://admin:admin@192.168.1.99/goform/video"),
-		startCamCapture("camB", "http://admin:admin@192.168.1.100/goform/video"),
-	}
-
-	// go startUploader(wf)
-	commandFuncs["cam"] = func(string) error {
-		saveJPEGToFolder("_mergecam.jpg", mergeCamFeeds(camList))
-		return nil
-	}
+	camAShutdown, camALastFile := captureFilterCameraPipe("http://admin:admin@192.168.1.99/goform/video", "camA")
+	camBShutdown, camBLastFile := captureFilterCameraPipe("http://admin:admin@192.168.1.100/goform/video", "camB")
 
 	commandFuncs["lum"] = func(string) error {
-		saveGIFToFolder("_lum.gif", outlineImg(makeLumTimeline(camList), color.Black).(*image.Paletted), 255)
-		return nil
-	}
-
-	commandFuncs["pal"] = func(line string) error {
-		var numCol int
-		var err error
-
-		tok := strings.Split(line, " ")
-		if len(tok) > 1 {
-			numCol, err = strconv.Atoi(tok[1])
-			if err != nil {
-				numCol = 255
-			}
-		}
-
-		saveGIFToFolder("_pal.gif", camList[0].lastImg, numCol)
 		return nil
 	}
 
@@ -128,12 +100,17 @@ func main() {
 	if *telegram {
 
 		log.Println("Running Loop")
-		go startBot(camList)
+		b := startBot()
+		b.AddCamera("camA", camALastFile)
+		b.AddCamera("camB", camBLastFile)
 	}
 	commandLoop()
 
 	// Clean up
 	log.Println("Clean up")
+	camAShutdown <- 1
+	camBShutdown <- 1
+
 }
 
 func commandLoop() {
