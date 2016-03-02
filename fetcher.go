@@ -14,6 +14,13 @@ import (
 	mjpeg "./mjpeg"
 )
 
+type computeBlock struct {
+	stamp      time.Time
+	lum        uint8
+	computeImg *image.Gray
+	srcImg     image.Image
+}
+
 func captureFilterCameraPipe(addr string, name string) (shutdown chan int, lastFile chan string) {
 
 	shutdown = make(chan int)
@@ -63,13 +70,6 @@ func fetchMPEGCamLoop(addr string, outImg chan image.Image, shutdown chan int) {
 	}
 }
 
-type computeBlock struct {
-	stamp      time.Time
-	lum        uint8
-	computeImg *image.Gray
-	srcImg     image.Image
-}
-
 func makeComputeBlock(srcImg chan image.Image, outBlock chan computeBlock) {
 	for {
 		img, ok := <-srcImg
@@ -102,38 +102,43 @@ func checkNewImage(inBlock chan computeBlock, outBlock chan computeBlock) {
 
 		// First Image, Diff Lum or
 		if (prevBlock.computeImg == nil) || (prevBlock.lum != newBlk.lum) {
+			fmt.Print("O")
 			prevBlock = newBlk
 			outBlock <- prevBlock
+
+		} else {
+			fmt.Print(".")
 		}
 	}
 }
 
 func saveLoopToFile(inBlock chan computeBlock, filename string, outfilename chan string) {
 	historyBlocks := []computeBlock{}
+
 	for {
 		newBlk, ok := <-inBlock
 		if !ok {
 			close(outfilename)
 			return
 		}
-
-		newBlk.computeImg = nil
-		newBlk.srcImg = nil
-
-		historyBlocks = append(historyBlocks, newBlk)
+		fmt.Print("w")
 
 		// Save To File
-		newFilename := fmt.Sprintf("%s_%s.gif", filename, newBlk.stamp.String())
+		newFilename := fmt.Sprintf("_%s_%d.gif", filename, newBlk.stamp.UnixNano())
 		saveJPEGToFolder(newFilename, newBlk.srcImg)
 
 		// Non Blocking Channel
 		select {
 		case outfilename <- newFilename:
-			break
-		case <-time.After(time.Millisecond):
-			<-outfilename
-			outfilename <- newFilename
+			fmt.Print(">")
+		default:
+			fmt.Print("_")
 		}
+
+		// Clear out mem
+		newBlk.computeImg = nil
+		newBlk.srcImg = nil
+		historyBlocks = append(historyBlocks, newBlk)
 
 		// Do Hourly Reports
 		if newBlk.stamp.Hour() != historyBlocks[0].stamp.Hour() {
@@ -186,7 +191,7 @@ func makeLumTimeline(blkList []computeBlock) *image.Paletted {
 	for i, blk := range blkList {
 		hOff := blk.lum
 
-		for off, y := i, 0; y <= int(hOff); off, y = i+y*numColours, y+1 {
+		for off, y := i, 0; y <= int(hOff); off, y = i+y*width, y+1 {
 			m.Pix[off] = hOff
 		}
 
