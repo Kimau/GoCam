@@ -56,15 +56,15 @@ messageLoop:
 			continue
 		}
 
-		replySendOpt.ReplyMarkup.CustomKeyboard = [][]string{{"/hi"}, b.camNames}
+		replySendOpt.ReplyMarkup.CustomKeyboard = [][]string{{"hi"}, b.camNames}
 
-		if message.Text == "/hi" {
+		if message.Text == "hi" {
 			text := fmt.Sprintf("Hello %s your id is %d", message.Sender.FirstName, message.Sender.ID)
 			b.bot.SendMessage(message.Chat, text, &replySendOpt)
 		}
 
 		for i, camName := range b.camNames {
-			if message.Text[1:] == camName {
+			if message.Text == camName {
 				fn := <-b.camFeeds[i]
 				photofile, _ := telebot.NewFile(fn)
 				photo := telebot.Photo{File: photofile}
@@ -73,7 +73,7 @@ messageLoop:
 			}
 		}
 
-		b.bot.SendMessage(message.Chat, "Say */hi*", &replySendOpt)
+		b.bot.SendMessage(message.Chat, "Say *hi*", &replySendOpt)
 	}
 }
 

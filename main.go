@@ -5,11 +5,14 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 type CommandFunc func(string) error
@@ -24,6 +27,7 @@ var (
 	db           = flag.String("db", "_data.db", "Database")
 	staticFldr   = flag.String("static", "./static", "Static Folder")
 	templateFldr = flag.String("template", "./templates", "Templates Folder")
+	movieCmd     = flag.String("movieCmd", "ffmpeg.exe -r 2 -f concat -i %s -c:v libx264 -pix_fmt yuv420p mov%s_%d_%d.mp4", "Set Movie Cmd")
 	debug        = flag.Bool("debug", false, "enter debug mode")
 	telegram     = flag.Bool("telegram", false, "telegram bot live")
 	commandFuncs = make(map[string]CommandFunc)
@@ -49,7 +53,57 @@ func init() {
 			return nil
 		}
 	}
+}
 
+func saveMovie(camName string) {
+	prefix := fmt.Sprintf("_%s", camName)
+
+	// Get File List
+	rawfiles, _ := ioutil.ReadDir(CAPTURE_FOLDER)
+	files := []string{}
+	for _, f := range rawfiles {
+		fn := f.Name()
+		if strings.HasPrefix(fn, prefix) {
+			fn, _ = filepath.Abs(fn)
+			files = append(files, fn)
+		}
+	}
+
+	if len(files) < 3 {
+		fmt.Println("Not enough files", camName, files)
+		return
+	}
+
+	// Write to Temp File
+	tFilename := fmt.Sprintf("_templist_%s.txt", camName)
+	tempFile, _ := os.Create(tFilename)
+	for _, f := range files {
+		fmt.Fprintf(tempFile, "file '%s'\n", f)
+	}
+	tempFile.Close()
+
+	fullCmd := fmt.Sprintf(*movieCmd, tFilename, camName, time.Now().Day(), time.Now().Hour())
+	fmt.Println(fullCmd)
+
+	logFile, _ := os.Create(fmt.Sprintf("logfilm_%s.txt", camName))
+
+	cmd := exec.Command("cmd", "/c", fullCmd)
+	cmd.Path, _ = filepath.Abs(".")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Start()
+	fmt.Println("Waiting for movie to finish...")
+	cmd.Wait()
+
+	logFile.Close()
+
+	// Remove Files
+	/*os.Remove(tFilename)
+	for _, f := range files {
+		os.Remove(f)
+	}*/
+
+	fmt.Println("Done")
 }
 
 func spltFunc(data []byte, atEOF bool) (advance int, token []byte, err error) {
@@ -93,6 +147,13 @@ func main() {
 	camBShutdown, camBLastFile := captureFilterCameraPipe("http://admin:admin@192.168.1.100/goform/video", "camB")
 
 	commandFuncs["lum"] = func(string) error {
+		return nil
+	}
+
+	commandFuncs["movie"] = func(string) error {
+		fmt.Println("Making Movie")
+		go saveMovie("camA")
+		go saveMovie("camB")
 		return nil
 	}
 

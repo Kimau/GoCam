@@ -102,12 +102,10 @@ func checkNewImage(inBlock chan computeBlock, outBlock chan computeBlock) {
 
 		// First Image, Diff Lum or
 		if (prevBlock.computeImg == nil) || (prevBlock.lum != newBlk.lum) {
-			fmt.Print("O")
 			prevBlock = newBlk
 			outBlock <- prevBlock
 
 		} else {
-			fmt.Print(".")
 		}
 	}
 }
@@ -121,18 +119,15 @@ func saveLoopToFile(inBlock chan computeBlock, filename string, outfilename chan
 			close(outfilename)
 			return
 		}
-		fmt.Print("w")
 
 		// Save To File
-		newFilename := fmt.Sprintf("_%s_%d.gif", filename, newBlk.stamp.UnixNano())
+		newFilename := fmt.Sprintf("%s/_%s_%d.jpg", CAPTURE_FOLDER, filename, newBlk.stamp.UnixNano())
 		saveJPEGToFolder(newFilename, newBlk.srcImg)
 
 		// Non Blocking Channel
 		select {
 		case outfilename <- newFilename:
-			fmt.Print(">")
 		default:
-			fmt.Print("_")
 		}
 
 		// Clear out mem
