@@ -24,11 +24,11 @@ type computeBlock struct {
 func captureFilterCameraPipe(addr string, name string) (shutdown chan int, lastFile chan string) {
 
 	shutdown = make(chan int)
-	lastFile = make(chan string)
-	diffValChan := make(chan int)
-	everyFrame := make(chan image.Image)
-	everyBlock := make(chan computeBlock)
-	filterBlock := make(chan computeBlock)
+	lastFile = make(chan string, 5)
+	diffValChan := make(chan int, 5)
+	everyFrame := make(chan image.Image, 5)
+	everyBlock := make(chan computeBlock, 5)
+	filterBlock := make(chan computeBlock, 5)
 
 	go fetchMPEGCamLoop(addr, everyFrame, shutdown)
 	go makeComputeBlock(everyFrame, everyBlock)
@@ -95,6 +95,7 @@ func makeComputeBlock(srcImg chan image.Image, outBlock chan computeBlock) {
 func checkNewImage(inBlock chan computeBlock, outBlock chan computeBlock, dValChan chan int) {
 	var prevBlock computeBlock
 	prevBlock.computeImg = nil
+
 	for {
 		newBlk, ok := <-inBlock
 		if !ok {
@@ -110,10 +111,11 @@ func checkNewImage(inBlock chan computeBlock, outBlock chan computeBlock, dValCh
 		} else {
 			// Compare Difference
 			d := DiffImg(prevBlock.computeImg, newBlk.computeImg)
-			diffVal := lumTotal(d)
+
+			diffVal := totalValFilter(d, 15)
 			dValChan <- diffVal
 
-			if diffVal > 50000 {
+			if diffVal > 1000 {
 				prevBlock = newBlk
 				outBlock <- prevBlock
 			}
@@ -127,13 +129,17 @@ func saveLoopToFile(inBlock chan computeBlock, filename string, outfilename chan
 	for {
 		newBlk, ok := <-inBlock
 		if !ok {
+			saveMovie(filename)
 			close(outfilename)
 			return
 		}
 
 		// Save To File
 		newFilename := fmt.Sprintf("%s/_%s_%d.jpg", CAPTURE_FOLDER, filename, newBlk.stamp.UnixNano())
-		saveJPEGToFolder(newFilename, newBlk.srcImg)
+
+		rgbImg := ToRGBAImage(newBlk.srcImg)
+		DrawClock(rgbImg, &newBlk.stamp)
+		saveJPEGToFolder(newFilename, rgbImg)
 
 		// Non Blocking Channel
 		select {
@@ -148,8 +154,9 @@ func saveLoopToFile(inBlock chan computeBlock, filename string, outfilename chan
 
 		// Do Hourly Reports
 		if newBlk.stamp.Hour() != historyBlocks[0].stamp.Hour() {
-			lumImg := makeLumHourlyImg(historyBlocks)
-			saveGIFToFolder(fmt.Sprintf("_lum%s_%d.gif", filename, historyBlocks[0].stamp.Hour()), lumImg, len(lumImg.Palette))
+			// Start Movie Saving
+			go saveMovie(filename)
+
 			historyBlocks = []computeBlock{}
 		}
 	}
@@ -177,7 +184,7 @@ func saveMotionReport(filename string, dValChan chan int) {
 		if lastReportHour != time.Now().Hour() {
 			lumImg := makeMotionReport(historyVal, dMax)
 			saveGIFToFolder(fmt.Sprintf("_motion%s_%d.gif", filename, lastReportHour), lumImg, 2)
-			lastReportHour := time.Now().Hour()
+			lastReportHour = time.Now().Hour()
 			historyVal = []int{}
 			dMax = 0
 		}
@@ -237,7 +244,6 @@ func makeLumTimeline(blkList []computeBlock) *image.Paletted {
 
 func makeMotionReport(dVal []int, maxVal int) *image.Paletted {
 	// Make Colour Pal
-	numColours := 2
 	width := len(dVal)
 	height := maxVal / 100
 

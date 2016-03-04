@@ -175,6 +175,27 @@ func lumAvg(src *image.Gray) (lum uint8) {
 	return lum
 }
 
+func totalValFilter(src *image.Gray, lowFilter uint8) (lum int) {
+	lum = 0
+	for _, v := range src.Pix {
+		if v > lowFilter {
+			lum += int(v)
+		}
+	}
+
+	return lum
+}
+
+func LowFilter(src *image.Gray, lowFilter uint8) {
+
+	for o, omax := 0, len(src.Pix); o < omax; o += 1 {
+		if src.Pix[o] <= lowFilter {
+			src.Pix[o] = 0
+		}
+	}
+
+}
+
 func DiffImg(a, b *image.Gray) *image.Gray {
 	if a.Bounds() != b.Bounds() {
 		return nil
@@ -241,6 +262,18 @@ func ToComputeImageNearest(src image.Image) *image.Gray {
 	}
 
 	return smallImg
+}
+
+func ToRGBAImage(src image.Image) *image.RGBA {
+	conv, ok := src.(*image.RGBA)
+	if ok {
+		return conv
+	}
+
+	fullBound := src.Bounds()
+	m := image.NewRGBA(fullBound)
+	draw.Draw(m, fullBound, src, image.ZP, draw.Src)
+	return m
 }
 
 func ToComputeImage(src image.Image) *image.Gray {

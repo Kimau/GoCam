@@ -4,6 +4,7 @@
 *.so
 _*
 *secret*
+*.mp4
 
 # Folders
 _obj
