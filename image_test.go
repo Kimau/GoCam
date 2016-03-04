@@ -50,9 +50,15 @@ func TestComputeImage(t *testing.T) {
 	fmt.Println("Converted Made")
 
 	comp := cm.Convert(img)
-	saveGIFToFolder("_testCamCompute.gif", comp)
+	comp2 := ToComputeImageManual(img)
+	comp3 := ToComputeImageNearest(img)
+	comp4 := DiffImg(comp2, comp3)
+	saveGIFToFolder("_testCamCompute.gif", comp, 256)
+	saveGIFToFolder("_testCamCompute2.gif", comp2, 256)
+	saveGIFToFolder("_testCamCompute3.gif", comp3, 256)
+	saveGIFToFolder("_testCamCompute4.gif", comp4, 256)
 
-	shutdown <- 1
+	close(shutdown)
 
 	fmt.Println("Done")
 

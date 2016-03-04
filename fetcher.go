@@ -84,7 +84,7 @@ func makeComputeBlock(srcImg chan image.Image, outBlock chan computeBlock) {
 			computeImg: ToComputeImageManual(img),
 		}
 
-		cb.lum = lumTotal(cb.computeImg)
+		cb.lum = lumAvg(cb.computeImg)
 
 		outBlock <- cb
 	}
@@ -100,12 +100,19 @@ func checkNewImage(inBlock chan computeBlock, outBlock chan computeBlock) {
 			return
 		}
 
-		// First Image, Diff Lum or
-		if (prevBlock.computeImg == nil) || (prevBlock.lum != newBlk.lum) {
+		if prevBlock.computeImg == nil {
+			// First Image
 			prevBlock = newBlk
 			outBlock <- prevBlock
-
 		} else {
+			// Compare Difference
+			d := DiffImg(prevBlock.computeImg, newBlk.computeImg)
+			diff := lumTotal(d)
+
+			if diff > 5 {
+				prevBlock = newBlk
+				outBlock <- prevBlock
+			}
 		}
 	}
 }

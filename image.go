@@ -161,24 +161,86 @@ func outlineImg(img draw.Image, col color.Color) image.Image {
 
 //------------------------------------------------------------------------------
 // Compute Stuff
-func lumTotal(src *image.Gray) (lum uint8) {
-	lum = 128
-
-	var lumTotal int
+func lumTotal(src *image.Gray) (lum int) {
+	lum = 0
 	for _, v := range src.Pix {
-		lumTotal += int(v)
+		lum += int(v)
 	}
-
-	lum = uint8(lumTotal / len(src.Pix))
 
 	return lum
 }
 
-func ToComputeImageManual(src image.Image) *image.Gray {
-	m := image.NewGray(src.Bounds())
-	draw.Draw(m, m.Bounds(), src, image.ZP, draw.Src)
+func lumAvg(src *image.Gray) (lum uint8) {
+	lum = uint8(lumTotal(src) / len(src.Pix))
+	return lum
+}
+
+func DiffImg(a, b *image.Gray) *image.Gray {
+	if a.Bounds() != b.Bounds() {
+		return nil
+	}
+
+	m := image.NewGray(a.Bounds())
+	for o, omax := 0, len(m.Pix); o < omax; o += 1 {
+		aPix := a.Pix[o]
+		bPix := b.Pix[o]
+		if aPix > bPix {
+			m.Pix[o] = aPix - bPix
+		} else {
+			m.Pix[o] = bPix - aPix
+		}
+	}
 
 	return m
+}
+
+func ToComputeImageManual(src image.Image) *image.Gray {
+	fullBound := src.Bounds()
+	m := image.NewGray(fullBound)
+	draw.Draw(m, fullBound, src, image.ZP, draw.Src)
+
+	// Smaller Image
+	smallBound := image.Rect(0, 0, fullBound.Dx()/4, fullBound.Dy()/4)
+	smallImg := image.NewGray(smallBound)
+
+	swid := smallBound.Dx()
+	wid := fullBound.Dx()
+	for o, o2, omax := 0, 0, len(smallImg.Pix); o < omax; o, o2 = o+1, o2+4 {
+		if (o % swid) == 0 {
+			o2 = (o / swid) * wid * 4
+		}
+
+		smallImg.Pix[o] = uint8((int(m.Pix[o2+0]) +
+			int(m.Pix[o2+3]) +
+			int(m.Pix[o2+2+wid]) +
+			int(m.Pix[o2+1+wid*2]) +
+			int(m.Pix[o2+0+wid*3]) +
+			int(m.Pix[o2+3+wid*3])) / 6)
+	}
+
+	return smallImg
+}
+
+func ToComputeImageNearest(src image.Image) *image.Gray {
+	fullBound := src.Bounds()
+	m := image.NewGray(fullBound)
+	draw.Draw(m, fullBound, src, image.ZP, draw.Src)
+
+	// Smaller Image
+	smallBound := image.Rect(0, 0, fullBound.Dx()/4, fullBound.Dy()/4)
+	smallImg := image.NewGray(smallBound)
+
+	swid := smallBound.Dx()
+	wid := fullBound.Dx()
+	for o, o2, omax := 0, 0, len(smallImg.Pix); o < omax; o, o2 = o+1, o2+4 {
+		if (o % swid) == 0 {
+			o2 = (o / swid) * wid * 4
+		}
+
+		smallImg.Pix[o] = m.Pix[o2+0]
+	}
+
+	return smallImg
 }
 
 func ToComputeImage(src image.Image) *image.Gray {
