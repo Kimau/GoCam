@@ -25,14 +25,16 @@ func captureFilterCameraPipe(addr string, name string) (shutdown chan int, lastF
 
 	shutdown = make(chan int)
 	lastFile = make(chan string)
+	diffValChan := make(chan int)
 	everyFrame := make(chan image.Image)
 	everyBlock := make(chan computeBlock)
 	filterBlock := make(chan computeBlock)
 
 	go fetchMPEGCamLoop(addr, everyFrame, shutdown)
 	go makeComputeBlock(everyFrame, everyBlock)
-	go checkNewImage(everyBlock, filterBlock)
+	go checkNewImage(everyBlock, filterBlock, diffValChan)
 	go saveLoopToFile(filterBlock, name, lastFile)
+	go saveMotionReport(name, diffValChan)
 
 	return shutdown, lastFile
 }
@@ -90,13 +92,14 @@ func makeComputeBlock(srcImg chan image.Image, outBlock chan computeBlock) {
 	}
 }
 
-func checkNewImage(inBlock chan computeBlock, outBlock chan computeBlock) {
+func checkNewImage(inBlock chan computeBlock, outBlock chan computeBlock, dValChan chan int) {
 	var prevBlock computeBlock
 	prevBlock.computeImg = nil
 	for {
 		newBlk, ok := <-inBlock
 		if !ok {
 			close(outBlock)
+			close(dValChan)
 			return
 		}
 
@@ -107,9 +110,10 @@ func checkNewImage(inBlock chan computeBlock, outBlock chan computeBlock) {
 		} else {
 			// Compare Difference
 			d := DiffImg(prevBlock.computeImg, newBlk.computeImg)
-			diff := lumTotal(d)
+			diffVal := lumTotal(d)
+			dValChan <- diffVal
 
-			if diff > 5 {
+			if diffVal > 50000 {
 				prevBlock = newBlk
 				outBlock <- prevBlock
 			}
@@ -145,8 +149,37 @@ func saveLoopToFile(inBlock chan computeBlock, filename string, outfilename chan
 		// Do Hourly Reports
 		if newBlk.stamp.Hour() != historyBlocks[0].stamp.Hour() {
 			lumImg := makeLumHourlyImg(historyBlocks)
-			saveGIFToFolder(fmt.Sprintf("%s_%d.gif", filename, historyBlocks[0].stamp.Hour()), lumImg, len(lumImg.Palette))
+			saveGIFToFolder(fmt.Sprintf("_lum%s_%d.gif", filename, historyBlocks[0].stamp.Hour()), lumImg, len(lumImg.Palette))
 			historyBlocks = []computeBlock{}
+		}
+	}
+}
+
+func saveMotionReport(filename string, dValChan chan int) {
+	historyVal := []int{}
+	dMax := 0
+	lastReportHour := time.Now().Hour()
+
+	for {
+		newVal, ok := <-dValChan
+		if !ok {
+			lumImg := makeMotionReport(historyVal, dMax)
+			saveGIFToFolder(fmt.Sprintf("_motion%s_%d.gif", filename, lastReportHour), lumImg, 2)
+			return
+		}
+
+		historyVal = append(historyVal, newVal)
+		if newVal > dMax {
+			dMax = newVal
+		}
+
+		// Do Hourly Reports
+		if lastReportHour != time.Now().Hour() {
+			lumImg := makeMotionReport(historyVal, dMax)
+			saveGIFToFolder(fmt.Sprintf("_motion%s_%d.gif", filename, lastReportHour), lumImg, 2)
+			lastReportHour := time.Now().Hour()
+			historyVal = []int{}
+			dMax = 0
 		}
 	}
 }
@@ -195,6 +228,31 @@ func makeLumTimeline(blkList []computeBlock) *image.Paletted {
 
 		for off, y := i, 0; y <= int(hOff); off, y = i+y*width, y+1 {
 			m.Pix[off] = hOff
+		}
+
+	}
+
+	return m
+}
+
+func makeMotionReport(dVal []int, maxVal int) *image.Paletted {
+	// Make Colour Pal
+	numColours := 2
+	width := len(dVal)
+	height := maxVal / 100
+
+	tempPal := color.Palette([]color.Color{
+		color.RGBA{0, 0, 0, 0},
+		color.RGBA{255, 255, 255, 255},
+	})
+
+	m := image.NewPaletted(image.Rect(0, 0, width, height), tempPal)
+
+	for i, v := range dVal {
+		hOff := v / 100
+
+		for off, y := i, 0; y <= int(hOff); off, y = i+y*width, y+1 {
+			m.Pix[off] = 1
 		}
 
 	}
