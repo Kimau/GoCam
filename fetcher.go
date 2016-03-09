@@ -245,7 +245,7 @@ func makeLumTimeline(blkList []computeBlock) *image.Paletted {
 func makeMotionReport(dVal []int, maxVal int) *image.Paletted {
 	// Make Colour Pal
 	width := len(dVal)
-	height := maxVal / 100
+	height := maxVal / 1000
 
 	tempPal := color.Palette([]color.Color{
 		color.RGBA{0, 0, 0, 0},
@@ -255,9 +255,13 @@ func makeMotionReport(dVal []int, maxVal int) *image.Paletted {
 	m := image.NewPaletted(image.Rect(0, 0, width, height), tempPal)
 
 	for i, v := range dVal {
-		hOff := v / 100
+		hOff := int(v / 1000)
+		if hOff >= height {
+			hOff = height - 1
+			fmt.Println("Height too large, corrected")
+		}
 
-		for off, y := i, 0; y <= int(hOff); off, y = i+y*width, y+1 {
+		for off, y := i, 0; y <= hOff; off, y = off+width, y+1 {
 			m.Pix[off] = 1
 		}
 

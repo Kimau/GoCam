@@ -163,8 +163,8 @@ func main() {
 
 		log.Println("Running Loop")
 		b := startBot()
-		b.AddCamera("camA", camALastFile)
-		b.AddCamera("camB", camBLastFile)
+		b.AddCamera("lounge", camALastFile)
+		b.AddCamera("kitchen", camBLastFile)
 	}
 	commandLoop()
 
