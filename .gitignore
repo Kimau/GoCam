@@ -5,6 +5,8 @@
 _*
 *secret*
 *.mp4
+*.gif
+log*.txt
 
 # Folders
 _obj

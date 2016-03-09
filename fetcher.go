@@ -18,6 +18,7 @@ type computeBlock struct {
 	stamp      time.Time
 	lum        uint8
 	computeImg *image.Gray
+	diffImg    *image.Gray
 	srcImg     image.Image
 }
 
@@ -107,12 +108,13 @@ func checkNewImage(inBlock chan computeBlock, outBlock chan computeBlock, dValCh
 		if prevBlock.computeImg == nil {
 			// First Image
 			prevBlock = newBlk
+			prevBlock.diffImg = image.NewGray(prevBlock.computeImg.Bounds())
 			outBlock <- prevBlock
 		} else {
 			// Compare Difference
-			d := DiffImg(prevBlock.computeImg, newBlk.computeImg)
+			prevBlock.diffImg = DiffImg(prevBlock.computeImg, newBlk.computeImg)
 
-			diffVal := totalValFilter(d, 15)
+			diffVal := totalValFilter(prevBlock.diffImg, 15)
 			dValChan <- diffVal
 
 			if diffVal > 1000 {
@@ -156,7 +158,7 @@ func saveLoopToFile(inBlock chan computeBlock, filename string, outfilename chan
 			// Composite Image
 			mo := make([]*image.Gray, len(historyBlocks))
 			for i, v := range historyBlocks {
-				mo[i] = v.computeImg
+				mo[i] = v.diffImg
 			}
 
 			cimg, cerr := MakeComposite(mo)
