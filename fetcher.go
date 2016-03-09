@@ -146,6 +146,17 @@ func saveLoopToFile(inBlock chan computeBlock, filename string, outfilename chan
 		if newBlk.stamp.Hour() != historyBlocks[0].stamp.Hour() {
 			lumImg := makeLumHourlyImg(historyBlocks)
 			saveGIFToFolder(fmt.Sprintf("%s_%d.gif", filename, historyBlocks[0].stamp.Hour()), lumImg, len(lumImg.Palette))
+
+			mo := make([]*image.Gray, len(historyBlocks))
+			for i, v := range historyBlocks {
+				mo[i] = v.computeImg
+			}
+
+			cimg, cerr := MakeComposite(mo)
+			if cerr == nil && cimg != nil {
+				saveGIFToFolder(fmt.Sprintf("%s_comp_%d.gif", filename, historyBlocks[0].stamp.Hour()), cimg, 256)
+			}
+
 			historyBlocks = []computeBlock{}
 		}
 	}

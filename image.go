@@ -6,6 +6,8 @@ import (
 	"image/draw"
 	"image/gif"
 	"image/jpeg"
+
+	"errors"
 	"log"
 	"os"
 
@@ -317,4 +319,44 @@ func (cm *ComMaker) Convert(src image.Image) *image.Gray {
 	cm.rConv.Convert(gDst, gSrc)
 
 	return gDst
+}
+
+//--------------------------------------------------------------
+
+func MakeComposite(srcImages []*image.Gray) (*image.Gray, error) {
+	// Possible low pass filter
+
+	maxB := srcImages[0].Bounds()
+	/* Assume first image is bound set
+	for i := len(srcImages) - 1; i > 0; i -= 1 {
+		maxB := maxB.Union(srcImages[i].Bounds())
+	} */
+
+	res := make([]int, len(srcImages[0].Pix))
+
+	for _, img := range srcImages {
+		if img.Bounds() != maxB {
+			return nil, errors.New("Invalid Bounds Match")
+		}
+
+		for i := len(res) - 1; i >= 0; i -= 1 {
+			res[i] += int(img.Pix[i])
+		}
+	}
+
+	// Find Max
+	maxVal := 0
+	for _, v := range res {
+		if v > maxVal {
+			maxVal = v
+		}
+	}
+
+	// Level Image
+	resImg := image.NewGray(maxB)
+	for i, v := range res {
+		resImg.Pix[i] = uint8((v * 255) / maxVal)
+	}
+
+	return resImg, nil
 }
