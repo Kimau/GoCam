@@ -148,15 +148,26 @@ func saveLoopToFile(inBlock chan computeBlock, filename string, outfilename chan
 		}
 
 		// Clear out mem
-		newBlk.computeImg = nil
 		newBlk.srcImg = nil
 		historyBlocks = append(historyBlocks, newBlk)
 
 		// Do Hourly Reports
 		if newBlk.stamp.Hour() != historyBlocks[0].stamp.Hour() {
+			// Composite Image
+			mo := make([]*image.Gray, len(historyBlocks))
+			for i, v := range historyBlocks {
+				mo[i] = v.computeImg
+			}
+
+			cimg, cerr := MakeComposite(mo)
+			if cerr == nil && cimg != nil {
+				saveGIFToFolder(fmt.Sprintf("%s_comp_%d.gif", filename, historyBlocks[0].stamp.Hour()), cimg, 256)
+			}
+
 			// Start Movie Saving
 			go saveMovie(filename)
 
+			// Clear Out
 			historyBlocks = []computeBlock{}
 		}
 	}

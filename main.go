@@ -85,11 +85,12 @@ func saveMovie(camName string) {
 	fullCmd := fmt.Sprintf(*movieCmd, tFilename, camName, time.Now().Day(), time.Now().Hour())
 	fmt.Println(fullCmd)
 
-	cmdList := strings.Split(fullCmd, " ")
+	logFile, _ := os.Create(fmt.Sprintf("logfilm_%s_%d_%d.txt", camName, time.Now().Day(), time.Now().Hour()))
 
+	cmdList := strings.Split(fullCmd, " ")
 	cmd := exec.Command(cmdList[0], cmdList[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
 	err := cmd.Start()
 	if err != nil {
 		fmt.Println(err)
@@ -97,6 +98,8 @@ func saveMovie(camName string) {
 		fmt.Println("Waiting for movie to finish...")
 		cmd.Wait()
 	}
+
+	logFile.Close()
 
 	// Remove Files
 	os.Remove(tFilename)
