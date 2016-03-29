@@ -4,16 +4,13 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"testing"
 	"time"
 )
 
 const (
-	TESTDATA_FOLDER  = "./_TestFolder"
-	TEST_FILE_FORMAT = "_([A-Za-z]*)_([0-9]*).*"
-	TEST_FILE_LIMIT  = 100
+	TESTDATA_FOLDER = "./_TestFolder"
+	TEST_FILE_LIMIT = 100
 )
 
 func TestHourReport(t *testing.T) {
@@ -49,8 +46,6 @@ func TestHourReport(t *testing.T) {
 }
 
 func TestFolder(t *testing.T) {
-	re := regexp.MustCompile(TEST_FILE_FORMAT)
-
 	// Read Files
 	setupCaptureFolder()
 	rawfiles, _ := ioutil.ReadDir(TESTDATA_FOLDER)
@@ -70,18 +65,16 @@ func TestFolder(t *testing.T) {
 		}
 
 		fn, _ := filepath.Abs(TESTDATA_FOLDER + "\\" + f.Name())
-		substr := re.FindAllStringSubmatch(f.Name(), -1)
 
-		if len(substr) > 0 {
-			camName := substr[0][1]
-			camDate, _ := strconv.ParseInt(substr[0][2], 10, 64)
-			camTime := time.Unix(0, camDate)
-
+		camName, camDate, camErr := extractNameDate(f.Name())
+		if camErr != nil {
+			t.Log(camErr)
+		} else {
 			v, ok := camData[camName]
 			if ok {
-				camData[camName] = append(v, testData{t: camTime, f: fn})
+				camData[camName] = append(v, testData{t: camDate, f: fn})
 			} else {
-				camData[camName] = []testData{{t: camTime, f: fn}}
+				camData[camName] = []testData{{t: camDate, f: fn}}
 			}
 		}
 	}
@@ -111,6 +104,8 @@ func TestFolder(t *testing.T) {
 
 			everyBlock <- cb
 		}
+
+		close(everyBlock)
 	}
 
 	for k, v := range camData {

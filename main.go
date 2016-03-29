@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -12,7 +13,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 )
 
 type CommandFunc func(string) error
@@ -56,7 +56,7 @@ func init() {
 	}
 }
 
-func saveMovie(camName string) {
+func saveMovie(camName string) error {
 	prefix := fmt.Sprintf("_%s", camName)
 
 	// Get File List
@@ -71,8 +71,13 @@ func saveMovie(camName string) {
 	}
 
 	if len(files) < 3 {
-		fmt.Println("Not enough files", camName, files)
-		return
+		return errors.New(fmt.Sprintf("Not enough files", camName, files))
+	}
+
+	// Camera Name
+	_, camDate, camErr := extractNameDate(files[0])
+	if camErr != nil {
+		return camErr
 	}
 
 	// Write to Temp File
@@ -83,33 +88,29 @@ func saveMovie(camName string) {
 	}
 	tempFile.Close()
 
-	fullCmd := fmt.Sprintf(*movieCmd, tFilename, camName, time.Now().Day(), time.Now().Hour())
+	fullCmd := fmt.Sprintf(*movieCmd, tFilename, camName, camDate.Day(), camDate.Hour())
 	fmt.Println(fullCmd)
-
-	var logFile *os.File
-	if *movieLog {
-		logFile, _ = os.Create(fmt.Sprintf("%s/_logfilm_%s_%d_%d.txt", CAPTURE_FOLDER, camName, time.Now().Day(), time.Now().Hour()))
-	}
 
 	cmdList := strings.Split(fullCmd, " ")
 	cmd := exec.Command(cmdList[0], cmdList[1:]...)
 
+	var logFile *os.File
 	if *movieLog {
+		logFile, _ = os.Create(fmt.Sprintf("%s/_logfilm_%s_%d_%d.txt", CAPTURE_FOLDER, camName, camDate.Day(), camDate.Hour()))
+
 		cmd.Stdout = logFile
 		cmd.Stderr = logFile
+
+		defer logFile.Close()
 	}
 
 	err := cmd.Start()
 	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println("Waiting for movie to finish...")
-		cmd.Wait()
+		return err
 	}
 
-	if *movieLog {
-		logFile.Close()
-	}
+	fmt.Println("Waiting for movie to finish...")
+	cmd.Wait()
 
 	// Remove Files
 	os.Remove(tFilename)
@@ -118,6 +119,7 @@ func saveMovie(camName string) {
 	}
 
 	fmt.Println("Done")
+	return nil
 }
 
 func spltFunc(data []byte, atEOF bool) (advance int, token []byte, err error) {
@@ -131,17 +133,6 @@ func spltFunc(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	}
 
 	return advance + TokLen, data[:advance], nil
-}
-
-func setupCaptureFolder() {
-	// Create Capture Folder
-	FileErr := os.RemoveAll(CAPTURE_FOLDER)
-	if FileErr != nil && !os.IsNotExist(FileErr) {
-		log.Fatalln(FileErr)
-		return
-	}
-
-	os.Mkdir(CAPTURE_FOLDER, os.ModePerm)
 }
 
 func main() {
