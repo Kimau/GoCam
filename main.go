@@ -133,6 +133,17 @@ func spltFunc(data []byte, atEOF bool) (advance int, token []byte, err error) {
 	return advance + TokLen, data[:advance], nil
 }
 
+func setupCaptureFolder() {
+	// Create Capture Folder
+	FileErr := os.RemoveAll(CAPTURE_FOLDER)
+	if FileErr != nil && !os.IsNotExist(FileErr) {
+		log.Fatalln(FileErr)
+		return
+	}
+
+	os.Mkdir(CAPTURE_FOLDER, os.ModePerm)
+}
+
 func main() {
 	commandFuncs["clear"]("clear")
 	flag.Parse()
@@ -148,14 +159,7 @@ func main() {
 	//SetupWebFace(wf)
 	//wf.RedirectHandler = nil
 
-	// Create Capture Folder
-	FileErr := os.RemoveAll(CAPTURE_FOLDER)
-	if FileErr != nil && !os.IsNotExist(FileErr) {
-		log.Fatalln(FileErr)
-		return
-	}
-
-	os.Mkdir(CAPTURE_FOLDER, os.ModePerm)
+	setupCaptureFolder()
 
 	camAShutdown, camALastFile := captureFilterCameraPipe("http://admin:admin@192.168.1.99/goform/video", "lounge")
 	camBShutdown, camBLastFile := captureFilterCameraPipe("http://admin:admin@192.168.1.100/goform/video", "kitchen")

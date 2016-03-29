@@ -13,6 +13,7 @@ import (
 const (
 	TESTDATA_FOLDER  = "./_TestFolder"
 	TEST_FILE_FORMAT = "_([A-Za-z]*)_([0-9]*).*"
+	TEST_FILE_LIMIT  = 100
 )
 
 func TestHourReport(t *testing.T) {
@@ -51,6 +52,7 @@ func TestFolder(t *testing.T) {
 	re := regexp.MustCompile(TEST_FILE_FORMAT)
 
 	// Read Files
+	setupCaptureFolder()
 	rawfiles, _ := ioutil.ReadDir(TESTDATA_FOLDER)
 	t.Logf("TEST---- %d", len(rawfiles))
 
@@ -61,7 +63,12 @@ func TestFolder(t *testing.T) {
 
 	camData := make(map[string][]testData)
 
-	for _, f := range rawfiles {
+	for i, f := range rawfiles {
+		if testing.Short() && i > TEST_FILE_LIMIT {
+			t.Logf("Short test stopping at %d file", i)
+			break
+		}
+
 		fn, _ := filepath.Abs(TESTDATA_FOLDER + "\\" + f.Name())
 		substr := re.FindAllStringSubmatch(f.Name(), -1)
 
