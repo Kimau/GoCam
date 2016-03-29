@@ -82,13 +82,11 @@ func TestFolder(t *testing.T) {
 	tFunc := func(name string, tList []testData) {
 
 		lastFile := make(chan string, 5)
-		diffValChan := make(chan int, 5)
 		everyBlock := make(chan computeBlock, 5)
 		filterBlock := make(chan computeBlock, 5)
 
-		go checkNewImage(everyBlock, filterBlock, diffValChan)
+		go checkNewImage(everyBlock, filterBlock)
 		go saveLoopToFile(filterBlock, name, lastFile)
-		go saveMotionReport(name, diffValChan)
 
 		for _, dat := range tList {
 

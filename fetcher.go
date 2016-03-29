@@ -20,22 +20,26 @@ type computeBlock struct {
 	computeImg *image.Gray
 	diffImg    *image.Gray
 	srcImg     image.Image
+	diffVal    int
 }
+
+const (
+	DIFF_VAL_LOWPASS = 20
+	DIFF_VAL_CUTOFF  = 30500
+)
 
 func captureFilterCameraPipe(addr string, name string) (shutdown chan int, lastFile chan string) {
 
 	shutdown = make(chan int)
 	lastFile = make(chan string, 5)
-	diffValChan := make(chan int, 5)
 	everyFrame := make(chan image.Image, 5)
 	everyBlock := make(chan computeBlock, 5)
 	filterBlock := make(chan computeBlock, 5)
 
 	go fetchMPEGCamLoop(addr, everyFrame, shutdown)
 	go makeComputeBlock(everyFrame, everyBlock)
-	go checkNewImage(everyBlock, filterBlock, diffValChan)
+	go checkNewImage(everyBlock, filterBlock)
 	go saveLoopToFile(filterBlock, name, lastFile)
-	go saveMotionReport(name, diffValChan)
 
 	return shutdown, lastFile
 }
@@ -93,7 +97,7 @@ func makeComputeBlock(srcImg chan image.Image, outBlock chan computeBlock) {
 	}
 }
 
-func checkNewImage(inBlock chan computeBlock, outBlock chan computeBlock, dValChan chan int) {
+func checkNewImage(inBlock chan computeBlock, outBlock chan computeBlock) {
 	var prevBlock computeBlock
 	prevBlock.computeImg = nil
 
@@ -101,7 +105,6 @@ func checkNewImage(inBlock chan computeBlock, outBlock chan computeBlock, dValCh
 		newBlk, ok := <-inBlock
 		if !ok {
 			close(outBlock)
-			close(dValChan)
 			return
 		}
 
@@ -111,12 +114,10 @@ func checkNewImage(inBlock chan computeBlock, outBlock chan computeBlock, dValCh
 			outBlock <- prevBlock
 		} else {
 			// Compare Difference
-			prevBlock.diffImg = DiffImg(prevBlock.computeImg, newBlk.computeImg)
+			newBlk.diffImg = DiffImg(prevBlock.computeImg, newBlk.computeImg)
+			newBlk.diffVal = totalValFilter(newBlk.diffImg, DIFF_VAL_LOWPASS)
 
-			diffVal := totalValFilter(prevBlock.diffImg, 15)
-			dValChan <- diffVal
-
-			if diffVal > 1000 {
+			if newBlk.diffVal > DIFF_VAL_CUTOFF {
 				prevBlock = newBlk
 				outBlock <- prevBlock
 			}
@@ -138,9 +139,11 @@ func saveLoopToFile(inBlock chan computeBlock, cameraName string, outfilename ch
 		// Save To File
 		newFilename := fmt.Sprintf("%s/_%s_%d.jpg", CAPTURE_FOLDER, cameraName, newBlk.stamp.UnixNano())
 
-		rgbImg := ToRGBAImage(newBlk.srcImg)
-		DrawClock(rgbImg, &newBlk.stamp)
-		saveJPEGToFolder(newFilename, rgbImg)
+		if newBlk.diffImg != nil {
+			rgbImg := ToRGBAImage(newBlk.srcImg)
+			DrawClock(rgbImg, &newBlk.stamp)
+			saveJPEGToFolder(newFilename, rgbImg)
+		}
 
 		// Non Blocking Channel
 		select {
@@ -160,35 +163,6 @@ func saveLoopToFile(inBlock chan computeBlock, cameraName string, outfilename ch
 
 			// Clear Out
 			historyBlocks = []computeBlock{}
-		}
-	}
-}
-
-func saveMotionReport(filename string, dValChan chan int) {
-	historyVal := []int{}
-	dMax := 0
-	lastReportHour := time.Now().Hour()
-
-	for {
-		newVal, ok := <-dValChan
-		if !ok {
-			lumImg := makeMotionReport(historyVal, dMax)
-			saveGIFToFolder(fmt.Sprintf("%s/_motion%s_%d.gif", CAPTURE_FOLDER, filename, lastReportHour), lumImg, 2)
-			return
-		}
-
-		historyVal = append(historyVal, newVal)
-		if newVal > dMax {
-			dMax = newVal
-		}
-
-		// Do Hourly Reports
-		if lastReportHour != time.Now().Hour() {
-			lumImg := makeMotionReport(historyVal, dMax)
-			saveGIFToFolder(fmt.Sprintf("%s/_motion%s_%d.gif", CAPTURE_FOLDER, filename, lastReportHour), lumImg, 2)
-			lastReportHour = time.Now().Hour()
-			historyVal = []int{}
-			dMax = 0
 		}
 	}
 }

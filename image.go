@@ -181,7 +181,8 @@ func totalValFilter(src *image.Gray, lowFilter uint8) (lum int) {
 	lum = 0
 	for _, v := range src.Pix {
 		if v > lowFilter {
-			lum += int(v)
+			vi := int(v)
+			lum += vi * vi
 		}
 	}
 
