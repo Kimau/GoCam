@@ -30,6 +30,7 @@ var (
 	movieCmd     = flag.String("movieCmd", "./ffmpeg.exe -r 6 -f concat -i %s -c:v libx264 -pix_fmt yuv420p mov%s_%d_%d.mp4", "Set Movie Cmd")
 	debug        = flag.Bool("debug", false, "enter debug mode")
 	telegram     = flag.Bool("telegram", false, "telegram bot live")
+	movieLog     = flag.Bool("movielog", false, "generate log files for mmpeg")
 	commandFuncs = make(map[string]CommandFunc)
 )
 
@@ -85,12 +86,19 @@ func saveMovie(camName string) {
 	fullCmd := fmt.Sprintf(*movieCmd, tFilename, camName, time.Now().Day(), time.Now().Hour())
 	fmt.Println(fullCmd)
 
-	logFile, _ := os.Create(fmt.Sprintf("logfilm_%s_%d_%d.txt", camName, time.Now().Day(), time.Now().Hour()))
+	var logFile *os.File
+	if *movieLog {
+		logFile, _ = os.Create(fmt.Sprintf("%s/_logfilm_%s_%d_%d.txt", CAPTURE_FOLDER, camName, time.Now().Day(), time.Now().Hour()))
+	}
 
 	cmdList := strings.Split(fullCmd, " ")
 	cmd := exec.Command(cmdList[0], cmdList[1:]...)
-	cmd.Stdout = logFile
-	cmd.Stderr = logFile
+
+	if *movieLog {
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
+	}
+
 	err := cmd.Start()
 	if err != nil {
 		fmt.Println(err)
@@ -99,7 +107,9 @@ func saveMovie(camName string) {
 		cmd.Wait()
 	}
 
-	logFile.Close()
+	if *movieLog {
+		logFile.Close()
+	}
 
 	// Remove Files
 	os.Remove(tFilename)

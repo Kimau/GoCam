@@ -108,7 +108,6 @@ func checkNewImage(inBlock chan computeBlock, outBlock chan computeBlock, dValCh
 		if prevBlock.computeImg == nil {
 			// First Image
 			prevBlock = newBlk
-			prevBlock.diffImg = image.NewGray(prevBlock.computeImg.Bounds())
 			outBlock <- prevBlock
 		} else {
 			// Compare Difference
@@ -125,19 +124,19 @@ func checkNewImage(inBlock chan computeBlock, outBlock chan computeBlock, dValCh
 	}
 }
 
-func saveLoopToFile(inBlock chan computeBlock, filename string, outfilename chan string) {
+func saveLoopToFile(inBlock chan computeBlock, cameraName string, outfilename chan string) {
 	historyBlocks := []computeBlock{}
 
 	for {
 		newBlk, ok := <-inBlock
 		if !ok {
-			saveMovie(filename)
+			saveMovie(cameraName)
 			close(outfilename)
 			return
 		}
 
 		// Save To File
-		newFilename := fmt.Sprintf("%s/_%s_%d.jpg", CAPTURE_FOLDER, filename, newBlk.stamp.UnixNano())
+		newFilename := fmt.Sprintf("%s/_%s_%d.jpg", CAPTURE_FOLDER, cameraName, newBlk.stamp.UnixNano())
 
 		rgbImg := ToRGBAImage(newBlk.srcImg)
 		DrawClock(rgbImg, &newBlk.stamp)
@@ -155,19 +154,9 @@ func saveLoopToFile(inBlock chan computeBlock, filename string, outfilename chan
 
 		// Do Hourly Reports
 		if newBlk.stamp.Hour() != historyBlocks[0].stamp.Hour() {
-			// Composite Image
-			mo := make([]*image.Gray, len(historyBlocks))
-			for i, v := range historyBlocks {
-				mo[i] = v.diffImg
-			}
-
-			cimg, cerr := MakeComposite(mo)
-			if cerr == nil && cimg != nil {
-				saveGIFToFolder(fmt.Sprintf("%s_comp_%d.gif", filename, historyBlocks[0].stamp.Hour()), cimg, 256)
-			}
 
 			// Start Movie Saving
-			go saveMovie(filename)
+			go saveMovie(cameraName)
 
 			// Clear Out
 			historyBlocks = []computeBlock{}
@@ -184,7 +173,7 @@ func saveMotionReport(filename string, dValChan chan int) {
 		newVal, ok := <-dValChan
 		if !ok {
 			lumImg := makeMotionReport(historyVal, dMax)
-			saveGIFToFolder(fmt.Sprintf("_motion%s_%d.gif", filename, lastReportHour), lumImg, 2)
+			saveGIFToFolder(fmt.Sprintf("%s/_motion%s_%d.gif", CAPTURE_FOLDER, filename, lastReportHour), lumImg, 2)
 			return
 		}
 
@@ -196,7 +185,7 @@ func saveMotionReport(filename string, dValChan chan int) {
 		// Do Hourly Reports
 		if lastReportHour != time.Now().Hour() {
 			lumImg := makeMotionReport(historyVal, dMax)
-			saveGIFToFolder(fmt.Sprintf("_motion%s_%d.gif", filename, lastReportHour), lumImg, 2)
+			saveGIFToFolder(fmt.Sprintf("%s/_motion%s_%d.gif", CAPTURE_FOLDER, filename, lastReportHour), lumImg, 2)
 			lastReportHour = time.Now().Hour()
 			historyVal = []int{}
 			dMax = 0

@@ -1,9 +1,18 @@
 package main
 
 import (
+	"io/ioutil"
 	"math/rand"
+	"path/filepath"
+	"regexp"
+	"strconv"
 	"testing"
 	"time"
+)
+
+const (
+	TESTDATA_FOLDER  = "./_TestFolder"
+	TEST_FILE_FORMAT = "_([A-Za-z]*)_([0-9]*).*"
 )
 
 func TestHourReport(t *testing.T) {
@@ -36,4 +45,69 @@ func TestHourReport(t *testing.T) {
 
 	saveGIFToFolder("_testTimeline0.gif", makeLumTimeline(blkListRand), 256)
 	saveGIFToFolder("_testTimeline1.gif", makeLumTimeline(blkListRamp), 256)
+}
+
+func TestFolder(t *testing.T) {
+	re := regexp.MustCompile(TEST_FILE_FORMAT)
+
+	// Read Files
+	rawfiles, _ := ioutil.ReadDir(TESTDATA_FOLDER)
+	t.Logf("TEST---- %d", len(rawfiles))
+
+	type testData struct {
+		t time.Time
+		f string
+	}
+
+	camData := make(map[string][]testData)
+
+	for _, f := range rawfiles {
+		fn, _ := filepath.Abs(TESTDATA_FOLDER + "\\" + f.Name())
+		substr := re.FindAllStringSubmatch(f.Name(), -1)
+
+		if len(substr) > 0 {
+			camName := substr[0][1]
+			camDate, _ := strconv.ParseInt(substr[0][2], 10, 64)
+			camTime := time.Unix(0, camDate)
+
+			v, ok := camData[camName]
+			if ok {
+				camData[camName] = append(v, testData{t: camTime, f: fn})
+			} else {
+				camData[camName] = []testData{{t: camTime, f: fn}}
+			}
+		}
+	}
+
+	tFunc := func(name string, tList []testData) {
+
+		lastFile := make(chan string, 5)
+		diffValChan := make(chan int, 5)
+		everyBlock := make(chan computeBlock, 5)
+		filterBlock := make(chan computeBlock, 5)
+
+		go checkNewImage(everyBlock, filterBlock, diffValChan)
+		go saveLoopToFile(filterBlock, name, lastFile)
+		go saveMotionReport(name, diffValChan)
+
+		for _, dat := range tList {
+
+			file := loadJPEGFromFolder(dat.f)
+
+			cb := computeBlock{
+				stamp:      dat.t,
+				srcImg:     file,
+				computeImg: ToComputeImageManual(file),
+			}
+
+			cb.lum = lumAvg(cb.computeImg)
+
+			everyBlock <- cb
+		}
+	}
+
+	for k, v := range camData {
+		tFunc(k, v)
+	}
+
 }

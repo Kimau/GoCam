@@ -84,7 +84,7 @@ func RotateImageLeft(src image.Image) image.Image {
 func saveJPEGToFolder(name string, img image.Image) {
 	f, e := os.Create(name)
 	if e != nil {
-		log.Println("Failed to Write", name, e)
+		log.Println("saveJPEGToFolder Failed to Create", name, e)
 	} else {
 		jpeg.Encode(f, img, &jpeg.Options{80})
 		f.Close()
@@ -94,7 +94,7 @@ func saveJPEGToFolder(name string, img image.Image) {
 func loadJPEGFromFolder(name string) image.Image {
 	f, e := os.Open(name)
 	if e != nil {
-		log.Println("Failed to Write", name, e)
+		log.Println("loadJPEGFromFolder Failed to Open", name, e)
 		return nil
 	} else {
 		img, _ := jpeg.Decode(f)
@@ -106,7 +106,7 @@ func loadJPEGFromFolder(name string) image.Image {
 func saveAllGIFToFolder(name string, imgGif *gif.GIF) {
 	f, e := os.Create(name)
 	if e != nil {
-		log.Println("Failed to Write", name, e)
+		log.Println("saveAllGIFToFolder Failed to Create", name, e)
 	} else {
 		gif.EncodeAll(f, imgGif)
 		f.Close()
@@ -118,7 +118,7 @@ func saveGIFToFolder(name string, img image.Image, numCol int) {
 	palImg, found := img.(*image.Paletted)
 
 	if e != nil {
-		log.Println("Failed to Write", name, e)
+		log.Println("saveGIFToFolder Failed to Create", name, e)
 		return
 	}
 
@@ -133,7 +133,7 @@ func saveGIFToFolder(name string, img image.Image, numCol int) {
 func loadGIFromFolder(name string) image.Image {
 	f, e := os.Open(name)
 	if e != nil {
-		log.Println("Failed to Write", name, e)
+		log.Println("loadGIFromFolder Failed to Open", name, e)
 		return nil
 	} else {
 		img, _ := gif.Decode(f)
@@ -359,15 +359,25 @@ func (cm *ComMaker) Convert(src image.Image) *image.Gray {
 func MakeComposite(srcImages []*image.Gray) (*image.Gray, error) {
 	// Possible low pass filter
 
-	maxB := srcImages[0].Bounds()
+	return nil, errors.New("Not Fixed")
+
+	isSet := false
+	var maxB image.Rectangle
 	/* Assume first image is bound set
 	for i := len(srcImages) - 1; i > 0; i -= 1 {
 		maxB := maxB.Union(srcImages[i].Bounds())
 	} */
 
-	res := make([]int, len(srcImages[0].Pix))
+	var res []int
 
 	for _, img := range srcImages {
+		if img == nil {
+			continue
+		}
+		if !isSet {
+			res = make([]int, len(img.Pix))
+			maxB = img.Bounds()
+		}
 		if img.Bounds() != maxB {
 			return nil, errors.New("Invalid Bounds Match")
 		}
