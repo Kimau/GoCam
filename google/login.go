@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"../web"
+	"GoCamCapture/web"
 
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"

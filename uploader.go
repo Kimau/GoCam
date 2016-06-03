@@ -9,8 +9,8 @@ import (
 	"log"
 	"net/http"
 
-	google "./google"
-	web "./web"
+	google "GoCamCapture/google"
+	web "GoCamCapture/web"
 )
 
 func startUploader(wf *web.WebFace) {

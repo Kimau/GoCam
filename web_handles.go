@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"regexp"
 
-	"./web"
+	"GoCamCapture/web"
 )
 
 var (

@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"time"
 
-	mjpeg "./mjpeg"
+	mjpeg "GoCamCapture/mjpeg"
 )
 
 type computeBlock struct {
