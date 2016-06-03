@@ -218,6 +218,44 @@ func DiffImg(a, b *image.Gray) *image.Gray {
 	return m
 }
 
+func ExposeCompose(srcList []*image.Gray) (m *image.Gray) {
+	if len(srcList) < 2 {
+		log.Println("ExposeCompose failed", len(srcList) < 2)
+		return nil
+	}
+
+	// Get 1st Valid Bound
+	for _, img := range srcList {
+		if img != nil {
+			m = image.NewGray(img.Bounds())
+		}
+	}
+
+	var maxVal int = 0
+	compValList := make([]int, len(m.Pix), len(m.Pix))
+
+	// Compose Images
+	for _, img := range srcList {
+		if img == nil {
+			continue
+		}
+
+		for o, omax := 0, len(img.Pix); o < omax; o += 1 {
+			compValList[o] += int(img.Pix[o])
+			if compValList[o] > maxVal {
+				maxVal = compValList[o]
+			}
+		}
+	}
+
+	// Make Image
+	for o, omax := 0, len(m.Pix); o < omax; o += 1 {
+		m.Pix[o] = uint8(255 * compValList[o] / maxVal)
+	}
+
+	return m
+}
+
 func ToComputeImageManual(src image.Image) *image.Gray {
 	fullBound := src.Bounds()
 	m := image.NewGray(fullBound)

@@ -10,7 +10,7 @@ import (
 
 const (
 	TESTDATA_FOLDER = "./_TestFolder"
-	TEST_FILE_LIMIT = 100
+	TEST_FILE_LIMIT = 250
 )
 
 func TestHourReport(t *testing.T) {
@@ -59,8 +59,8 @@ func TestFolder(t *testing.T) {
 	camData := make(map[string][]testData)
 
 	for i, f := range rawfiles {
-		if testing.Short() && i > TEST_FILE_LIMIT {
-			t.Logf("Short test stopping at %d file", i)
+		if i > TEST_FILE_LIMIT {
+			t.Logf("Test stopping at %d file", i)
 			break
 		}
 

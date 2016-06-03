@@ -132,6 +132,7 @@ func saveLoopToFile(inBlock chan computeBlock, cameraName string, outfilename ch
 		newBlk, ok := <-inBlock
 		if !ok {
 			saveMovie(cameraName)
+			saveCompImage(historyBlocks)
 			close(outfilename)
 			return
 		}
@@ -161,9 +162,26 @@ func saveLoopToFile(inBlock chan computeBlock, cameraName string, outfilename ch
 			// Start Movie Saving
 			go saveMovie(cameraName)
 
+			saveCompImage(historyBlocks)
+
 			// Clear Out
 			historyBlocks = []computeBlock{}
 		}
+	}
+}
+
+func saveCompImage(historyBlocks []computeBlock) {
+	imgList := make([]*image.Gray, len(historyBlocks), len(historyBlocks))
+	for i, v := range historyBlocks {
+		imgList[i] = v.diffImg
+	}
+
+	c := ExposeCompose(imgList)
+	if c != nil {
+		saveJPEGToFolder("_compose.jpg", c)
+		saveGIFToFolder("_compose.gif", c, 256)
+	} else {
+		log.Println("Expose was NIL")
 	}
 }
 
