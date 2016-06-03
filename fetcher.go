@@ -138,7 +138,7 @@ func saveLoopToFile(inBlock chan computeBlock, cameraName string, outfilename ch
 		}
 
 		// Save To File
-		newFilename := fmt.Sprintf("%s/_%s_%d.jpg", CAPTURE_FOLDER, cameraName, newBlk.stamp.UnixNano())
+		newFilename := fmt.Sprintf("%s/_%s_%d.jpg", CaptureFolder, cameraName, newBlk.stamp.UnixNano())
 
 		if newBlk.diffImg != nil {
 			rgbImg := ToRGBAImage(newBlk.srcImg)

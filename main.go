@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -15,11 +14,11 @@ import (
 	"strings"
 )
 
-type CommandFunc func(string) error
+type comandFunc func(string) error
 
 const (
-	MAX_IMAGE_PER_CAM = 10
-	CAPTURE_FOLDER    = "./Capture"
+	MaxImagePerCam = 10
+	CaptureFolder  = "./Capture"
 )
 
 var (
@@ -31,15 +30,15 @@ var (
 	debug        = flag.Bool("debug", false, "enter debug mode")
 	telegram     = flag.Bool("telegram", false, "telegram bot live")
 	movieLog     = flag.Bool("movielog", false, "generate log files for mmpeg")
-	commandFuncs = make(map[string]CommandFunc)
+	comandFuncs  = make(map[string]comandFunc)
 )
 
 func init() {
-	commandFuncs["help"] = listCommands
+	comandFuncs["help"] = listCommands
 
 	switch runtime.GOOS {
 	case "windows":
-		commandFuncs["clear"] = func(string) error {
+		comandFuncs["clear"] = func(string) error {
 			cmd := exec.Command("cmd", "/c", "cls")
 			cmd.Stdout = os.Stdout
 			cmd.Run()
@@ -49,7 +48,7 @@ func init() {
 	case "linux":
 		fallthrough
 	default:
-		commandFuncs["clear"] = func(string) error {
+		comandFuncs["clear"] = func(string) error {
 			print("\033[H\033[2J")
 			return nil
 		}
@@ -60,18 +59,18 @@ func saveMovie(camName string) error {
 	prefix := fmt.Sprintf("_%s", camName)
 
 	// Get File List
-	rawfiles, _ := ioutil.ReadDir(CAPTURE_FOLDER)
+	rawfiles, _ := ioutil.ReadDir(CaptureFolder)
 	files := []string{}
 	for _, f := range rawfiles {
 		fn := f.Name()
 		if strings.HasPrefix(fn, prefix) {
-			fn, _ = filepath.Abs(CAPTURE_FOLDER + "\\" + fn)
+			fn, _ = filepath.Abs(CaptureFolder + "\\" + fn)
 			files = append(files, fn)
 		}
 	}
 
 	if len(files) < 3 {
-		return errors.New(fmt.Sprintf("Not enough files", camName, files))
+		return fmt.Errorf("Not enough files [%s]: %s", camName, strings.Join(files, "\n"))
 	}
 
 	// Camera Name
@@ -96,7 +95,7 @@ func saveMovie(camName string) error {
 
 	var logFile *os.File
 	if *movieLog {
-		logFile, _ = os.Create(fmt.Sprintf("%s/_logfilm_%s_%d_%d.txt", CAPTURE_FOLDER, camName, camDate.Day(), camDate.Hour()))
+		logFile, _ = os.Create(fmt.Sprintf("%s/_logfilm_%s_%d_%d.txt", CaptureFolder, camName, camDate.Day(), camDate.Hour()))
 
 		cmd.Stdout = logFile
 		cmd.Stderr = logFile
@@ -124,10 +123,10 @@ func saveMovie(camName string) error {
 
 func spltFunc(data []byte, atEOF bool) (advance int, token []byte, err error) {
 
-	var BYTE_SPLIT_TOKEN = []byte("--boundarydonotcross")
-	var TokLen = len(BYTE_SPLIT_TOKEN)
+	var ByteSplitToken = []byte("--boundarydonotcross")
+	var TokLen = len(ByteSplitToken)
 
-	advance = bytes.Index(data, BYTE_SPLIT_TOKEN)
+	advance = bytes.Index(data, ByteSplitToken)
 	if advance < 0 {
 		return len(data), nil, nil
 	}
@@ -136,7 +135,7 @@ func spltFunc(data []byte, atEOF bool) (advance int, token []byte, err error) {
 }
 
 func main() {
-	commandFuncs["clear"]("clear")
+	comandFuncs["clear"]("clear")
 	flag.Parse()
 	if *debug {
 		log.Println("Debug Active")
@@ -155,11 +154,11 @@ func main() {
 	camAShutdown, camALastFile := captureFilterCameraPipe("http://admin:admin@192.168.1.99/goform/video", "lounge")
 	camBShutdown, camBLastFile := captureFilterCameraPipe("http://admin:admin@192.168.1.100/goform/video", "kitchen")
 
-	commandFuncs["lum"] = func(string) error {
+	comandFuncs["lum"] = func(string) error {
 		return nil
 	}
 
-	commandFuncs["movie"] = func(string) error {
+	comandFuncs["movie"] = func(string) error {
 		fmt.Println("Making Movie")
 		go saveMovie("lounge")
 		go saveMovie("kitchen")
@@ -192,7 +191,7 @@ func commandLoop() {
 		case line := <-lines:
 			cmd := strings.ToLower(strings.Split(line, " ")[0])
 
-			valFunc, ok := commandFuncs[cmd]
+			valFunc, ok := comandFuncs[cmd]
 			if ok {
 				err := valFunc(line)
 
@@ -227,7 +226,7 @@ func scanForInput() chan string {
 
 func listCommands(string) error {
 	commandOut := "Commands: "
-	for i := range commandFuncs {
+	for i := range comandFuncs {
 		commandOut += i + ", "
 	}
 

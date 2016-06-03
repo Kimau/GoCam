@@ -23,11 +23,11 @@ func extractNameDate(filename string) (name string, tStamp time.Time, err error)
 
 func setupCaptureFolder() error {
 	// Create Capture Folder
-	FileErr := os.RemoveAll(CAPTURE_FOLDER)
+	FileErr := os.RemoveAll(CaptureFolder)
 	if FileErr != nil && !os.IsNotExist(FileErr) {
 		return FileErr
 	}
 
-	os.Mkdir(CAPTURE_FOLDER, os.ModePerm)
+	os.Mkdir(CaptureFolder, os.ModePerm)
 	return nil
 }

@@ -66,14 +66,15 @@ func mergeImage(imgs []image.Image) image.Image {
 	return m
 }
 
+// RotateImageLeft will rotate image 90 deg Counter Clockwise
 func RotateImageLeft(src image.Image) image.Image {
 	width := src.Bounds().Size().X
 	height := src.Bounds().Size().Y
 
 	m := draw.Image(image.NewRGBA(image.Rect(0, 0, height, width)))
 
-	for x := 0; x < width; x += 1 {
-		for y := 0; y < width; y += 1 {
+	for x := 0; x < width; x++ {
+		for y := 0; y < width; y++ {
 			m.Set(y, width-x, src.At(x, y))
 		}
 	}
@@ -86,7 +87,7 @@ func saveJPEGToFolder(name string, img image.Image) {
 	if e != nil {
 		log.Println("saveJPEGToFolder Failed to Create", name, e)
 	} else {
-		jpeg.Encode(f, img, &jpeg.Options{80})
+		jpeg.Encode(f, img, &jpeg.Options{Quality: 80})
 		f.Close()
 	}
 }
@@ -96,11 +97,11 @@ func loadJPEGFromFolder(name string) image.Image {
 	if e != nil {
 		log.Println("loadJPEGFromFolder Failed to Open", name, e)
 		return nil
-	} else {
-		img, _ := jpeg.Decode(f)
-		f.Close()
-		return img
 	}
+
+	img, _ := jpeg.Decode(f)
+	f.Close()
+	return img
 }
 
 func saveAllGIFToFolder(name string, imgGif *gif.GIF) {
@@ -135,11 +136,12 @@ func loadGIFromFolder(name string) image.Image {
 	if e != nil {
 		log.Println("loadGIFromFolder Failed to Open", name, e)
 		return nil
-	} else {
-		img, _ := gif.Decode(f)
-		f.Close()
-		return img
 	}
+
+	img, _ := gif.Decode(f)
+	f.Close()
+	return img
+
 }
 
 //------------------------------------------------------------------------------
