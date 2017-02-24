@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	mjpeg "GoCamCapture/mjpeg"
+	"time"
 )
 
 type comandFunc func(string) error
@@ -94,9 +95,18 @@ func main() {
 
 	lines := scanForInput()
 
+	hourlyTicker := time.NewTicker(time.Hour)
+	comandFuncs["hourly"] = func(string) error {
+		b.SendUpdate()
+		return nil
+	}
+
 	for {
 		fmt.Println("Enter Command: ")
 		select {
+		case <-hourlyTicker.C:
+			b.SendUpdate()
+
 		case line := <-lines:
 			cmd := strings.ToLower(strings.Split(line, " ")[0])
 

@@ -31,6 +31,31 @@ func (b *Cambot) AddCamera(camName string, camFeed chan image.Image) {
 	b.cams[camName] = camFeed
 }
 
+func (b *Cambot) SendUpdate() {
+
+	uList := []*telebot.User{}
+
+	for _, v := range AuthUserIDList {
+		uList = append(uList, &telebot.User{ID: v})
+	}
+
+	for _, v := range b.cams {
+		fn := "_image.jpg"
+		<-v
+		rgbImg := <-v
+		// DrawClock(rgbImg, time.Now())
+		saveJPEGToFolder(fn, rgbImg)
+
+		photofile, _ := telebot.NewFile(fn)
+		photo := telebot.Photo{File: photofile}
+
+		for _, u := range uList {
+			_ = b.bot.SendPhoto(u, &photo, nil)
+		}
+
+	}
+}
+
 func (b *Cambot) ProceessMessage() {
 
 	replySendOpt := telebot.SendOptions{
