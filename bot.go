@@ -12,7 +12,7 @@ const (
 )
 
 func checkAuth(id int) bool {
-	for _, v := range AUTH_ID_LIST {
+	for _, v := range AuthUserIDList {
 		if v == id {
 			return true
 		}
@@ -81,7 +81,7 @@ func startBot() *Cambot {
 	var err error
 	var cb Cambot
 
-	cb.bot, err = telebot.NewBot(TELEGRAM_SECRET_TOKEN)
+	cb.bot, err = telebot.NewBot(TelegramSecretToken)
 	if err != nil {
 		return nil
 	}
